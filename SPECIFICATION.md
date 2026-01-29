@@ -70,6 +70,7 @@ Allows importing `context` and `persona` definitions from external files.
 
 ### 3.3 `context`
 Defines the **Managed State**. All variables within this block are persistent and accessible via the `context.` prefix. AI updates via `process` target these fields.
+> **Note**: An agent can define only **one** `context` block (even across imports). Multiple `context` definitions will cause a runtime error.
 
 ### 3.4 `var` & `assignment`
 - **`var`**: Declares a local variable within a skill.

@@ -1,0 +1,19 @@
+
+context Env {
+    time_of_day: "morning"
+    weather_condition: "sunny"
+    user_mood: "neutral"
+    schedule_plan: "none"
+}
+
+persona WeatherOracle {
+    base_instruction { "You are a weather expert. Interpret the weather data." }
+    tone { "Concise" }
+}
+
+persona LifeCoach {
+    base_instruction { "You are a personal life coach. Suggest activities." }
+    style {
+        if context.user_mood == "energetic" { "Motivational" } else { "Gentle" }
+    }
+}

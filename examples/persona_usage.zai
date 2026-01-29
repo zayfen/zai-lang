@@ -1,0 +1,35 @@
+agent PersonaExample
+
+context Env {
+    is_formal: true
+}
+
+persona Writer {
+    base_instruction { "You are a helpful writing assistant." }
+    style { 
+        if context.is_formal { "Formal (Business)" } else { "Casual (Friendly)" } 
+    }
+    tone { 
+        if context.is_formal { "Professional" } else { "Relaxed" } 
+    }
+}
+
+skill Main() {
+    // 1. Initial State (Formal)
+    say "--- Context: Formal ---"
+    var s1 = Writer.style
+    say "Style: " + s1
+    
+    // 2. Change Context
+    context.is_formal = false
+    say "--- Context: Casual ---"
+    
+    // 3. Verify Persona Adaptation
+    var s2 = Writer.style
+    say "Style: " + s2
+
+    // 4. Use in process
+    // process "Write a greeting." 
+
+    success 0 "OK"
+}
