@@ -1,4 +1,4 @@
-job Orchestrator
+agent Orchestrator
 
 context State {
     count: 0,
@@ -6,20 +6,20 @@ context State {
     status: "working"
 }
 
-conversion Voice {
+persona Voice {
     base: "Agent status is {status}. Count is {count}."
 }
 
-task Increment(amount) {
+skill Increment(amount) {
     context.count = context.count + amount
     say "Incremented count to {count}"
 }
 
-task Main() {
+skill Main() {
     say "Starting orchestration..."
     
     while context.count < context.threshold {
-        call Increment(amount = 1)
+        invoke Increment(amount = 1)
         if context.count >= context.threshold {
             context.status = "done"
         }

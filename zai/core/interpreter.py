@@ -1,49 +1,28 @@
 import re
-import json
-import requests
-import subprocess
-import os
-import sys
-
-class Environment:
-    def __init__(self, parent=None):
-        self.variables = {}
-        self.context = {}
-        self.parent = parent
-
-    def get_var(self, name):
-        if name in self.variables:
-            return self.variables[name]
-        if self.parent:
-            return self.parent.get_var(name)
-        raise NameError(f"Variable '{name}' not found")
-
-    def set_var(self, name, value):
-        self.variables[name] = value
-
-    def get_context(self, name):
-        if name in self.context:
-            return self.context[name]
-        if self.parent:
-            return self.parent.get_context(name)
-        return None
-
-    def set_context(self, name, value):
-        self.context[name] = value
+from .environment import Environment
+from ..runtime.bridge import AIBridge, ExecBridge
+from ..runtime.default_bridge import DefaultAIBridge, DefaultExecBridge
 
 class Interpreter:
-    def __init__(self, tree):
+    def __init__(self, tree, ai_bridge=None, exec_bridge=None, base_path="."):
         self.tree = tree
         self.env = Environment()
-        self.tasks = {}
-        self.job_name = ""
-        self.conversion = {}
+        self.skills = {}
+        self.agent_name = ""
+        self.persona = {}
+        self.ai_bridge = ai_bridge or DefaultAIBridge()
+        self.exec_bridge = exec_bridge or DefaultExecBridge()
+        self.base_path = base_path
 
-    def resolve_template(self, template_str, context):
+    def resolve_template(self, template_str, env):
         if not isinstance(template_str, str): return template_str
         def replace(match):
             key = match.group(1)
-            return str(context.get(key, f"{{{key}}}"))
+            try:
+                return str(env.get_var(key))
+            except:
+                val = self.env.get_context(key)
+                return str(val if val is not None else f"{{{key}}}")
         return re.sub(r"\{([a-zA-Z0-9_]+)\}", replace, template_str)
 
     def visit(self, node, env):
@@ -63,24 +42,26 @@ class Interpreter:
                     return last_result
         return last_result
 
-    def run(self, entry_task="Main", entry_args=None):
+    def run(self, entry_skill="Main", entry_args=None):
         root = self.tree
         if root.data == 'start':
-            root = next(child for child in root.children if hasattr(child, 'data') and child.data == 'job')
+            root = next(child for child in root.children if hasattr(child, 'data') and child.data == 'agent')
         
-        if root.data == 'job':
-            self.job_name = root.children[0].value
-            for job_child in root.children[1:]:
-                if not hasattr(job_child, 'data'): continue
-                if job_child.data == 'context_def':
-                    self.visit_context_def(job_child, self.env)
-                elif job_child.data == 'conversion_def':
-                    self.visit_conversion_def(job_child, self.env)
-                elif job_child.data == 'task_def':
-                    name = job_child.children[0].value
-                    self.tasks[name] = job_child
+        if root.data == 'agent':
+            self.agent_name = root.children[0].value
+            for agent_child in root.children[1:]:
+                if not hasattr(agent_child, 'data'): continue
+                if agent_child.data == 'context_def':
+                    self.visit_context_def(agent_child, self.env)
+                elif agent_child.data == 'import_stmt':
+                    self.visit_import_stmt(agent_child, self.env)
+                elif agent_child.data == 'persona_def':
+                    self.visit_persona_def(agent_child, self.env)
+                elif agent_child.data == 'skill_def':
+                    name = agent_child.children[0].value
+                    self.skills[name] = agent_child
 
-        return self.execute_task(entry_task, entry_args or {})
+        return self.execute_skill(entry_skill, entry_args or {})
 
     def visit_context_def(self, node, env):
         for item in node.children:
@@ -89,25 +70,69 @@ class Interpreter:
                 val = self.evaluate(item.children[1], env)
                 self.env.set_context(key, val)
 
-    def visit_conversion_def(self, node, env):
-        for item in node.children:
-            if hasattr(item, 'data') and item.data == 'conversion_item':
-                key = item.children[0].value
-                val = self.evaluate(item.children[1], env)
-                self.conversion[key] = val
+    def visit_import_stmt(self, node, env):
+        import os
+        from .parser import get_parser
+        rel_path = self.evaluate(node.children[0], env)
+        abs_path = os.path.join(self.base_path, rel_path)
+        with open(abs_path, 'r') as f:
+            code = f.read()
+        parser = get_parser()
+        tree = parser.parse(code, start='config_file')
+        for child in tree.children:
+            self.visit(child, env)
 
-    def execute_task(self, name, args):
-        if name not in self.tasks:
-            return {"status": "fail", "code": 404, "message": f"Task '{name}' not found"}
+    def visit_persona_def(self, node, env):
+        name = node.children[0].value
+        if name not in self.persona:
+            self.persona[name] = {}
+        for item in node.children[1:]:
+            if hasattr(item, 'data') and item.data == 'persona_item':
+                key = item.children[0].value
+                # Store the AST node (either expression or persona_block)
+                self.persona[name][key] = item.children[1]
+
+    def visit_persona_block(self, node, env):
+        fragments = []
+        for fragment in node.children:
+            val = self.visit(fragment, env)
+            if val: fragments.append(str(val))
+        return " ".join(fragments)
+
+    def visit_persona_if(self, node, env):
+        cond = self.evaluate(node.children[0], env)
+        if cond:
+            return self.visit(node.children[1], env)
+        elif len(node.children) > 2 and node.children[2] is not None:
+            return self.visit(node.children[2], env)
+        return ""
+
+    def evaluate_persona(self, persona_name, key, env):
+        if persona_name not in self.persona: return ""
+        node = self.persona[persona_name].get(key)
+        if node is None: return ""
         
-        task_node = self.tasks[name]
+        # If it was an inline expression (not a block)
+        if not hasattr(node, 'data') or node.data != 'persona_block':
+            val = self.evaluate(node, env)
+            return self.resolve_template(val, env)
+        
+        # If it is a block
+        val = self.visit(node, env)
+        return self.resolve_template(val, env)
+
+    def execute_skill(self, name, args):
+        if name not in self.skills:
+            return {"status": "fail", "code": 404, "message": f"Skill '{name}' not found"}
+        
+        skill_node = self.skills[name]
         body_start_index = 2
         
         local_env = Environment(parent=self.env)
         for k, v in args.items():
             self.env.set_context(k, v)
 
-        for stmt in task_node.children[body_start_index:]:
+        for stmt in skill_node.children[body_start_index:]:
             if not hasattr(stmt, 'data'): continue
             result = self.visit(stmt, local_env)
             if isinstance(result, dict) and (result.get("final") or result.get("status") == "fail"):
@@ -152,8 +177,8 @@ class Interpreter:
 
     def visit_response_stmt(self, node, env):
         val = self.evaluate(node.children[0], env)
-        msg = self.resolve_template(val, self.env.context)
-        print(f"[{self.job_name}] Agent: {msg}")
+        msg = self.resolve_template(val, env)
+        print(f"[{self.agent_name}] Agent: {msg}")
 
     def visit_ask_stmt(self, node, env):
         prompt = self.evaluate(node.children[0], env)
@@ -161,24 +186,27 @@ class Interpreter:
         if match:
             var_name = match.group(1)
             clean_prompt = prompt.replace(f"{{{var_name}=}}", "").strip()
-            user_val = input(f"[{self.job_name}] {clean_prompt} ")
+            user_val = input(f"[{self.agent_name}] {clean_prompt} ")
             self.env.set_context(var_name, user_val)
         else:
-            input(f"[{self.job_name}] {prompt} ")
+            input(f"[{self.agent_name}] {prompt} ")
 
     def visit_process_stmt(self, node, env):
-        prompt_expr = self.evaluate(node.children[0], env)
-        extract_keys = [self.evaluate(tok, env) for tok in node.children[1:] if tok is not None]
-        system_prompt = self.resolve_template(self.conversion.get('base_instruction', ""), self.env.context)
-        mock_data = {k: f"mock_{k}" for k in extract_keys}
-        for k, v in mock_data.items(): self.env.set_context(k, v)
+        prompt = self.evaluate(node.children[0], env)
+        keys = [self.evaluate(tok, env) for tok in node.children[1:] if tok is not None]
+        system = ""
+        for persona_name in self.persona:
+            if 'base_instruction' in self.persona[persona_name]:
+                system = self.evaluate_persona(persona_name, 'base_instruction', env)
+                break
+        res = self.ai_bridge.handle(prompt, keys, system, self.env.context)
+        for k, v in res.items(): self.env.set_context(k, v)
 
     def visit_exec_stmt(self, node, env):
         cmd = self.evaluate(node.children[0], env)
-        filter_keys = [self.evaluate(tok, env) for tok in node.children[1:] if tok is not None]
-        result = {"stock_count": 10, "output": "shell result"}
-        for k in filter_keys:
-            if k in result: self.env.set_context(k, result[k])
+        keys = [self.evaluate(tok, env) for tok in node.children[1:] if tok is not None]
+        res = self.exec_bridge.handle(cmd, keys)
+        for k, v in res.items(): self.env.set_context(k, v)
 
     def visit_notify_stmt(self, node, env):
         pass
@@ -194,13 +222,13 @@ class Interpreter:
                  temp_ctx[assign.children[0].value] = self.evaluate(assign.children[1], env)
         return self.resolve_template(tpl_str, temp_ctx)
 
-    def visit_task_call(self, node, env):
+    def visit_skill_invoke(self, node, env):
         name = node.children[0].value
         call_args = {}
         if len(node.children) > 1:
             for assign in node.children[1].children:
                 call_args[assign.children[0].value] = self.evaluate(assign.children[1], env)
-        res = self.execute_task(name, call_args)
+        res = self.execute_skill(name, call_args)
         if isinstance(res, dict) and res.get("status") == "success":
             res["final"] = False
         return res
@@ -223,10 +251,17 @@ class Interpreter:
                     except: return self.env.get_context(node.value)
             return node
         
-        if node.data in ['string', 'number', 'simple_expression', 'expression']: 
+        if node.data == 'true': return True
+        if node.data == 'false': return False
+        
+        if node.data in ['string', 'number', 'simple_expression', 'expression', 'boolean']: 
             return self.evaluate(node.children[0], env)
         if node.data == 'template_render': return self.visit_template_render(node, env)
         if node.data == 'context_var': return self.env.get_context(node.children[1].value)
+        if node.data == 'persona_ref':
+            persona_name = node.children[0].value
+            item_key = node.children[1].value
+            return self.evaluate_persona(persona_name, item_key, env)
         if node.data == 'binary_op':
             l, op, r = self.evaluate(node.children[0], env), node.children[1].value, self.evaluate(node.children[2], env)
             if l is None: l = 0
@@ -246,12 +281,3 @@ class Interpreter:
                 if op == '||': return bool(l) or bool(r)
             except: return False
         return None
-
-if __name__ == "__main__":
-    import sys, os
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from core.parser import get_parser
-    parser = get_parser()
-    with open(sys.argv[1] if len(sys.argv) > 1 else 'examples/test_parser.al') as f:
-        tree = parser.parse(f.read())
-    Interpreter(tree).run()

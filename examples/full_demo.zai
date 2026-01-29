@@ -1,4 +1,4 @@
-job CoffeeBot
+agent CoffeeBot
 
 context BotState {
     user_name: "Guest",
@@ -7,7 +7,7 @@ context BotState {
     mood: "neutral"
 }
 
-conversion BaristaVoice {
+persona BaristaVoice {
     base_instruction: """
     You are a friendly barista talking to {user_name}.
     We currently have {stock_count} cups of coffee in stock.
@@ -15,7 +15,7 @@ conversion BaristaVoice {
     """
 }
 
-task Main() {
+skill Main() {
     ask "Welcome! What's your name? {user_name=}"
     say "Nice to meet you, {user_name}!"
     

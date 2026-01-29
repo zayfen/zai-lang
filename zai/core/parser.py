@@ -1,17 +1,24 @@
 from lark import Lark
 
 GRAMMAR = r"""
-    ?start: job
+    ?start: agent | config_file | context_def | persona_def
 
-    job: "job" IDENTIFIER context_def conversion_def task_def+
+    agent: "agent" IDENTIFIER import_stmt* (context_def | persona_def)* skill_def+
+
+    import_stmt: "import" string
+
+    config_file: (context_def | persona_def)*
 
     context_def: "context" IDENTIFIER "{" (context_item (","? context_item)*)? "}"
     context_item: IDENTIFIER ":" expression
 
-    conversion_def: "conversion" IDENTIFIER "{" (conversion_item (","? conversion_item)*)? "}"
-    conversion_item: IDENTIFIER ":" expression
+    persona_def: "persona" IDENTIFIER "{" persona_item* "}"
+    persona_item: IDENTIFIER (":" expression | persona_block)
+    persona_block: "{" persona_fragment* "}"
+    ?persona_fragment: expression | persona_if
+    persona_if: "if" condition persona_block ["else" persona_block]
 
-    task_def: "task" IDENTIFIER "(" [params] ")" "{" statement* "}"
+    skill_def: "skill" IDENTIFIER "(" [params] ")" block
     params: IDENTIFIER ("," IDENTIFIER)*
 
     ?statement: var_decl
@@ -24,7 +31,7 @@ GRAMMAR = r"""
               | exec_stmt
               | notify_stmt
               | wait_stmt
-              | task_call
+              | skill_invoke
               | return_stmt
 
     var_decl: "var" IDENTIFIER "=" expression
@@ -46,24 +53,31 @@ GRAMMAR = r"""
     
     wait_stmt: "[" IDENTIFIER "," IDENTIFIER "]" "=" "wait" IDENTIFIER
 
-    task_call: "call" IDENTIFIER "(" [args] ")"
+    skill_invoke: "invoke" IDENTIFIER "(" [args] ")"
     args: assignment ("," assignment)*
 
     return_stmt: success_stmt | fail_stmt
     success_stmt: "success" expression expression
     fail_stmt: "fail" expression expression
     
-    response_stmt: ("reply" | "say") expression
+    ?response_stmt: ("reply" | "say") expression
 
     ?expression: binary_op
                | simple_expression
                | template_render
                | context_var
+               | persona_ref
+
+    persona_ref: IDENTIFIER "." IDENTIFIER
 
     ?simple_expression: string
                       | number
+                      | boolean
                       | IDENTIFIER
                       | "(" expression ")"
+
+    boolean: "true" -> true
+           | "false" -> false
 
     binary_op: expression OPERATOR expression
     OPERATOR: "+" | "-" | "*" | "/" | "==" | "!=" | ">" | "<" | ">=" | "<=" | "&&" | "||"
@@ -87,8 +101,4 @@ GRAMMAR = r"""
 """
 
 def get_parser():
-    return Lark(GRAMMAR, start='job', parser='lalr')
-
-if __name__ == "__main__":
-    parser = get_parser()
-    print("AgentLang Parser initialized successfully.")
+    return Lark(GRAMMAR, start=['agent', 'config_file', 'context_def', 'persona_def'], parser='lalr')
