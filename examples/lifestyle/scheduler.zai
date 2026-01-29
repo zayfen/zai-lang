@@ -1,0 +1,48 @@
+agent SchedulerAgent
+import "config.zaih"
+
+skill GetContext() {
+    // 1. Get Time (Simulating external command)
+    // In a real scenario: exec "date +%H" { filter: ["cur_hour"] }
+    // For this example, we mock it or use a simple exec if safe.
+    // context.time_of_day = "morning" 
+    
+    // Using exec to show the feature. 
+    // We will parse the output in a real app, but here we just show it returns 0.
+    exec "date" { filter: ["raw_date"] }
+    
+    // 2. Get User Mood via interaction
+    ask "How are you feeling today? (energetic/tired/neutral) {user_mood=}"
+
+    // 3. Update weather (Simulated)
+    // In a real app, this might be an API call.
+    context.weather_condition = "cloudy"
+}
+
+skill DecideActivity() {
+    say "Analyzing your context..."
+    say "Mood: " + context.user_mood
+    say "Weather: " + context.weather_condition
+
+    // Use the LifeCoach persona to generate a plan
+    process "Suggest a 1-hour activity based on my mood and weather." {
+        extract: ["schedule_plan"]
+    }
+}
+
+skill Main() {
+    say "--- Personal Schedule Manager ---"
+    
+    invoke GetContext()
+    
+    // Decision Logic based on data
+    if context.user_mood == "tired" {
+        say "DETECTED: Low energy levels."
+    }
+
+    invoke DecideActivity()
+
+    say "Sugested Plan: " + context.schedule_plan
+    
+    success 0 "Schedule complete"
+}

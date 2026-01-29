@@ -63,7 +63,7 @@ GRAMMAR = r"""
     success_stmt: "success" expression expression
     fail_stmt: "fail" expression expression
     
-    ?response_stmt: ("reply" | "say") expression
+    response_stmt: ("reply" | "say") expression
 
     ?expression: binary_op
                | simple_expression

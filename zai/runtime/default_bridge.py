@@ -16,7 +16,7 @@ class DefaultAIBridge(AIBridge):
         full_prompt = f"Context:\n{context_str}\n\nTask: {prompt}\n\nPlease return a JSON object with the following keys: {', '.join(extract_keys)}"
 
         response = self.client.chat.completions.create(
-            model="gpt-4o",
+            model=os.environ.get("ZAI_MODEL", "gpt-4o"),
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": full_prompt}
