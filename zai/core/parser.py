@@ -7,7 +7,7 @@ GRAMMAR = r"""
 
     import_stmt: "import" string
 
-    config_file: (context_def | persona_def)*
+    config_file: (context_def | persona_def | import_stmt)*
 
     context_def: "context" IDENTIFIER "{" (context_item (","? context_item)*)? "}"
     context_item: IDENTIFIER ":" expression
