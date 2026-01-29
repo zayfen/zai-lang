@@ -1,14 +1,14 @@
-job HelloAgent
+agent HelloAgent
 
 context Profile {
     name: "Riven"
 }
 
-conversion Default {
+persona Default {
     base: "Hello {name}."
 }
 
-task Main() {
+skill Main() {
     say "Hello {name}"
     process "Greet the user" {
         extract: ["name"]

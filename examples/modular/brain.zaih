@@ -1,0 +1,16 @@
+context GlobalContext {
+    user_name: "John Doe",
+    location: "Stockholm",
+    is_urgent: true
+}
+
+persona AssistantStyle {
+    base_instruction {
+        "You are {user_name}'s assistant in {location}."
+        if context.is_urgent {
+            "Be extremely brief."
+        } else {
+            "You can provide detailed explanations."
+        }
+    }
+}

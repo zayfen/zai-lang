@@ -1,0 +1,21 @@
+[project]
+name = "zai"
+version = "0.1.0"
+description = "zai: A Context-Oriented Programming Language for AI Orchestration"
+readme = "README.md"
+authors = [
+    { name = "zayfen", email = "zhangyunfeng0101@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "lark>=1.1.9",
+    "requests>=2.31.0",
+    "openai>=1.0.0",
+]
+
+[project.scripts]
+zai = "zai.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
