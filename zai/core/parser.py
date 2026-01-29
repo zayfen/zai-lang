@@ -1,7 +1,7 @@
 from lark import Lark
 
 GRAMMAR = r"""
-    ?start: agent | config_file | context_def | persona_def
+    start: (agent | context_def | persona_def | import_stmt)+
 
     agent: "agent" IDENTIFIER import_stmt* (context_def | persona_def)* skill_def+
 
@@ -31,8 +31,11 @@ GRAMMAR = r"""
               | exec_stmt
               | notify_stmt
               | wait_stmt
+              | start_stmt
               | skill_invoke
               | return_stmt
+ 
+    start_stmt: "start" IDENTIFIER
 
     var_decl: "var" IDENTIFIER "=" expression
     assignment: target "=" expression
@@ -101,4 +104,4 @@ GRAMMAR = r"""
 """
 
 def get_parser():
-    return Lark(GRAMMAR, start=['agent', 'config_file', 'context_def', 'persona_def'], parser='lalr')
+    return Lark(GRAMMAR, start=['start', 'agent', 'config_file', 'context_def', 'persona_def'], parser='lalr')

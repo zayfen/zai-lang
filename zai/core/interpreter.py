@@ -8,7 +8,7 @@ from ..runtime.bridge import AIBridge, ExecBridge
 from ..runtime.default_bridge import DefaultAIBridge, DefaultExecBridge
 
 class Interpreter:
-    def __init__(self, tree, ai_bridge=None, exec_bridge=None, base_path="."):
+    def __init__(self, tree, ai_bridge=None, exec_bridge=None, base_path=".", wait_timeout=60, source_file=None):
         self.tree = tree
         self.env = Environment()
         self.skills = {}
@@ -19,6 +19,8 @@ class Interpreter:
         self.base_path = base_path
         self.imported_files = set()  # prevent circular imports
         self.ipc_root = os.path.join(os.getcwd(), ".zai_ipc")
+        self.wait_timeout = wait_timeout
+        self.source_file = source_file
 
     def _ensure_ipc_dir(self, agent_name):
         path = os.path.join(self.ipc_root, agent_name)
@@ -53,15 +55,31 @@ class Interpreter:
                     return last_result
         return last_result
 
-    def run(self, entry_skill="Main", entry_args=None):
+    def run(self, agent_name=None, entry_skill="Main", entry_args=None):
         root = self.tree
         if root.data == 'start':
-            root = next(child for child in root.children if hasattr(child, 'data') and child.data == 'agent')
+            target_agent = None
+            if agent_name:
+                for child in root.children:
+                    if hasattr(child, 'data') and child.data == 'agent' and child.children[0].value == agent_name:
+                        target_agent = child
+                        break
+                if not target_agent:
+                    raise ValueError(f"Agent '{agent_name}' not found")
+            else:
+                # Default to first agent
+                for child in root.children:
+                    if hasattr(child, 'data') and child.data == 'agent':
+                        target_agent = child
+                        break
+                if not target_agent:
+                    # Could be just config file
+                    return {}
+            root = target_agent
         
         if root.data == 'agent':
             self.agent_name = root.children[0].value
-            # Ensure IPC directory exists for this agent
-            self._ensure_ipc_dir(self.agent_name)
+            self.context_defined = False
             
             for agent_child in root.children[1:]:
                 if not hasattr(agent_child, 'data'): continue
@@ -78,6 +96,10 @@ class Interpreter:
         return self.execute_skill(entry_skill, entry_args or {})
 
     def visit_context_def(self, node, env):
+        if self.context_defined:
+            raise RuntimeError("Multiple context definitions found. An agent can only have one context.")
+        self.context_defined = True
+        
         for item in node.children:
             if hasattr(item, 'data') and item.data == 'context_item':
                 key = item.children[0].value
@@ -272,7 +294,7 @@ class Interpreter:
         print(f"[{self.agent_name}] Waiting for signal from {target_source}...")
         
         # Simple polling loop
-        timeout = 60 # Default wait timeout strings?
+        timeout = self.wait_timeout 
         start_time = time.time()
         
         while time.time() - start_time < timeout:
@@ -322,7 +344,7 @@ class Interpreter:
     def visit_skill_invoke(self, node, env):
         name = node.children[0].value
         call_args = {}
-        if len(node.children) > 1:
+        if len(node.children) > 1 and node.children[1] is not None:
             for assign in node.children[1].children:
                 call_args[assign.children[0].value] = self.evaluate(assign.children[1], env)
         res = self.execute_skill(name, call_args)
@@ -332,6 +354,23 @@ class Interpreter:
 
     def visit_success_stmt(self, node, env):
         return {"status": "success", "code": int(self.evaluate(node.children[0], env)), "message": self.evaluate(node.children[1], env), "final": True}
+
+    def visit_start_stmt(self, node, env):
+        target_agent = node.children[0].value
+        print(f"[{self.agent_name}] Starting sub-agent: {target_agent}")
+        
+        import subprocess
+        import sys
+        
+        # If we have the source file, we can spawn a new process
+        if self.source_file:
+             cmd = [sys.executable, "-m", "zai.cli", self.source_file, "--agent", target_agent]
+             # Run in background? The user said "child agent... can execute wait notify"
+             # Ideally this should be non-blocking or managed. 
+             # "start" usually implies async spawning.
+             subprocess.Popen(cmd)
+        else:
+             print("Warning: Cannot start agent, source file not known.")
 
     def visit_fail_stmt(self, node, env):
         return {"status": "fail", "code": int(self.evaluate(node.children[0], env)), "message": self.evaluate(node.children[1], env), "final": True}

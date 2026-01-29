@@ -6,6 +6,7 @@ from zai.core.interpreter import Interpreter
 def main():
     parser = argparse.ArgumentParser(description="zai: AI Orchestration Language")
     parser.add_argument("file", help="The .zai file to execute")
+    parser.add_argument("--agent", default=None, help="Agent to run (default: first found)")
     parser.add_argument("--skill", default="Main", help="Entry skill (default: Main)")
     
     args = parser.parse_args()
@@ -19,15 +20,15 @@ def main():
         
     lang_parser = get_parser()
     try:
-        tree = lang_parser.parse(code, start='agent')
+        tree = lang_parser.parse(code, start='start')
     except Exception as e:
         print(f"Parse Error: {e}")
         sys.exit(1)
         
     import os
     base_path = os.path.dirname(os.path.abspath(args.file))
-    interpreter = Interpreter(tree, base_path=base_path)
-    result = interpreter.run(entry_skill=args.skill)
+    interpreter = Interpreter(tree, base_path=base_path, source_file=os.path.abspath(args.file))
+    result = interpreter.run(agent_name=args.agent, entry_skill=args.skill)
     
     if result.get("status") == "fail":
         print(f"Execution Failed: {result.get('message')} (Code: {result.get('code')})")
