@@ -7,12 +7,12 @@ context State {
 }
 
 persona Voice {
-    base: "Agent status is {status}. Count is {count}."
+    base: "Agent status is {{status}}. Count is {{count}}."
 }
 
 skill Increment(amount) {
     context.count = context.count + amount
-    say "Incremented count to {count}"
+    say "Incremented count to {{count}}"
 }
 
 skill Main() {
@@ -25,6 +25,6 @@ skill Main() {
         }
     }
     
-    say "Final status: {status}"
+    say "Final status: {{status}}"
     success 0 "Orchestration Complete"
 }

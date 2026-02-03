@@ -3,33 +3,53 @@ agent CoffeeBot
 context BotState {
     user_name: "Guest",
     coffee_type: "none",
-    stock_count: "unknown",
+    stock_count: 10,
+    ordered_count: 0,
     mood: "neutral"
 }
 
 persona BaristaVoice {
+    system: """
+    You are a friendly barista talking to {{user_name}}.
+    We currently have {{stock_count}} cups of coffee in stock.
+    The customer seems {{mood}}. You should manage stock count, If ordered count greater than
+    stock count, you shouldn't sell.
+    """
+}
+
+persona RecommandCoffee {
     base_instruction: """
-    You are a friendly barista talking to {user_name}.
-    We currently have {stock_count} cups of coffee in stock.
-    The customer seems {mood}.
+    Recommand a type coffee for customer. This
+    customer lost 100 yuan money today!
     """
 }
 
 skill Main() {
-    ask "Welcome! What's your name? {user_name=}"
-    say "Nice to meet you, {user_name}!"
+    ask "Welcome! What's your name? {{user_name=}}"
+    say "Nice to meet you, {{user_name}}!"
     
     say "Checking our inventory..."
     exec "https://api.coffee-shop.com/stock" {
         filter: ["stock_count"]
     }
+
+    while stock_count > 0 {
     
-    say "We have {stock_count} items left. What would you like to order?"
-    process input {
-        extract: ["coffee_type", "mood"]
+    ask "We have {{stock_count}} items left. What would you like to order {{ordered_count=}}?"
+    if ordered_count > stock_count {
+       say "We don't have enough stock count"
+    } else {
+      say "Got, your order {{ordered_count}} items."
+    }    
+        
+    process RecommandCoffee.base_instruction {
+        extract: ["coffee_type", "mood", "stock_count"]
     }
     
-    say "Got it! One {coffee_type} coming up. You seem {mood} today!"
+    say "context updated coffee_type: {{coffee_type}}; mood: {{mood}}; stock_count: {{stock_count}}"
+    
+    say "Got it! One {{coffee_type}} coming up. You seem {{mood}} today!"
+    }
     
     success 0 "Order processed"
 }
