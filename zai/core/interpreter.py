@@ -4,7 +4,7 @@ import json
 import time
 import uuid
 from .environment import Environment
-from ..runtime.bridge import AIBridge, ExecBridge
+
 from ..runtime.default_bridge import DefaultAIBridge, DefaultExecBridge
 
 class Interpreter:
@@ -36,7 +36,7 @@ class Interpreter:
             except:
                 val = self.env.get_context(key)
                 return str(val if val is not None else f"{{{key}}}")
-        return re.sub(r"\{([a-zA-Z0-9_]+)\}", replace, template_str)
+        return re.sub(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}", replace, template_str)
 
     def visit(self, node, env):
         if node is None: return None
@@ -233,10 +233,13 @@ class Interpreter:
 
     def visit_ask_stmt(self, node, env):
         prompt = self.evaluate(node.children[0], env)
-        match = re.search(r"\{([a-zA-Z0-9_]+)=\}", prompt)
+        prompt = self.resolve_template(prompt, env)
+        match = re.search(r"\{\{\s*([a-zA-Z0-9_]+)=\s*\}\}", prompt)
         if match:
             var_name = match.group(1)
-            clean_prompt = prompt.replace(f"{{{var_name}=}}", "").strip()
+            # Match the exact pattern found and remove it
+            full_match = match.group(0)
+            clean_prompt = prompt.replace(full_match, "").strip()
             user_val = input(f"[{self.agent_name}] {clean_prompt} ")
             self.env.set_context(var_name, user_val)
         else:
@@ -249,8 +252,8 @@ class Interpreter:
         # STRICT PERSONA BINDING: Merge all available personas
         full_system_prompt = []
         for persona_name in self.persona:
-            if 'base_instruction' in self.persona[persona_name]:
-                 instruction = self.evaluate_persona(persona_name, 'base_instruction', env)
+            if 'system' in self.persona[persona_name]:
+                 instruction = self.evaluate_persona(persona_name, 'system', env)
                  if instruction:
                      full_system_prompt.append(f"--- Persona: {persona_name} ---\n{instruction}\n")
         
@@ -319,7 +322,7 @@ class Interpreter:
                     except:
                         pass
             
-            if found_msg:
+            if found_msg and found_file:
                 # Consume message
                 os.remove(found_file)
                 env.set_var(code_var, found_msg.get("type")) # usually numeric code or string
