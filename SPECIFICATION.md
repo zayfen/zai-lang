@@ -1,6 +1,8 @@
 # zai Language Specification
 Version: 1.4
 
+[English](SPECIFICATION.md) | [中文](SPECIFICATION.zh-CN.md)
+
 ## Overview
 **zai** is a context-oriented language designed for AI orchestration. This document defines the formal grammar and statement semantics.
 

@@ -1,5 +1,7 @@
 # zai
 
+[English](README.md) | [中文](README.zh-CN.md)
+
 **zai** is a context-oriented programming language designed for seamless AI orchestration. It allows developers to define AI-driven workflows where state (**Context**), AI personality (**Persona**), and external interaction (**Skill**) are treated as first-class language constructs.
 
 ## 🧠 Philosophy: Context-Oriented Programming
