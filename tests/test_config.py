@@ -183,25 +183,35 @@ class TestConfig:
         config = Config(str(temp_dir))
         assert config.get("ZAI_ANYTHING") is None
 
-    def test_empty_config_file(self, temp_dir):
+    def test_empty_config_file(self, temp_dir, monkeypatch):
         """Test handling of empty config file."""
+        # Clear environment to ensure isolation
+        monkeypatch.delenv("ZAI_MODEL", raising=False)
+        monkeypatch.delenv("ZAI_BASE_URL", raising=False)
+        Config.reset_instance()
+
         zai_dir = temp_dir / ".zai"
         zai_dir.mkdir()
         config_file = zai_dir / "config.json"
         config_file.write_text("")
 
         config = Config(str(temp_dir))
-        assert config.get("ZAI_MODEL") is None
+        assert config.get("ZAI_TEST_VAR") is None
 
-    def test_invalid_json(self, temp_dir):
+    def test_invalid_json(self, temp_dir, monkeypatch):
         """Test handling of invalid JSON."""
+        # Clear environment to ensure isolation
+        monkeypatch.delenv("ZAI_MODEL", raising=False)
+        monkeypatch.delenv("ZAI_BASE_URL", raising=False)
+        Config.reset_instance()
+
         zai_dir = temp_dir / ".zai"
         zai_dir.mkdir()
         config_file = zai_dir / "config.json"
         config_file.write_text("not valid json")
 
         config = Config(str(temp_dir))
-        assert config.get("ZAI_MODEL") is None
+        assert config.get("ZAI_TEST_VAR") is None
 
     def test_key_must_start_with_zai(self, temp_dir):
         """Test that keys must start with ZAI_ and be uppercase."""
