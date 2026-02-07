@@ -8,15 +8,20 @@ class DefaultAIBridge(AIBridge):
     def __init__(self, api_key=None, base_url=None):
         self.api_key = api_key or os.environ.get("ZAI_API_KEY")
         self.base_url = base_url or os.environ.get("ZAI_BASE_URL")
+        self.model = os.environ.get("ZAI_MODEL") or 'deepseek-reasoner'
+        self.temperature = os.environ.get('ZAI_TEMPERATURE') or 0
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
+        print(f"[DefaultAIBridge] API_KEY: {self.api_key}  ; BASE_URL: {self.base_url} ; TEMPERATURE: {self.temperature}")
+
     def handle(self, prompt, extract_keys, system_prompt, context):
+        # print(f"[DefaultAIBridge] {prompt=} {extract_keys=} {system_prompt=} {context=}")
         # Format the context for the AI
         context_str = json.dumps(context, indent=2, ensure_ascii=False)
         full_prompt = f"Context:\n{context_str}\n\nTask: {prompt}\n\nPlease return a JSON object with the following keys: {', '.join(extract_keys)}"
 
         response = self.client.chat.completions.create(
-            model=os.environ.get("ZAI_MODEL", "gpt-4o"),
+            model=self.model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": full_prompt}
