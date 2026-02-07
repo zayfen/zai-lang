@@ -105,6 +105,29 @@ skill HandleEmergency() {
 
 ---
 
+### Agent System Prompt（基础身份）= 核心自我认知
+
+**人脑中的对应物**：大脑皮层中的自我表征 + 杏仁核的情绪基调
+
+人类的自我认知是相对稳定的：无论面对什么情境，你都知道自己是谁，有自己的核心价值观和行为底线。Agent System Prompt 就是这种**基础自我认知**。
+
+```zai
+agent CustomerServiceBot
+<<<
+You are a professional customer service representative.
+Core values: Empathy, Efficiency, Integrity
+Current customer: {{customer_name}}
+>>>
+```
+
+**与 Persona 的区别**：
+- **Agent System Prompt**：基础身份（稳定，定义"你是谁"）
+- **Persona**：情境适应（动态，定义"在这个场景下如何表现"）
+
+就像一位医生，基础身份是"救死扶伤的医务工作者"（Agent System Prompt），但面对急诊病人时会激活"紧急抢救模式"，面对门诊病人时激活"诊断咨询模式"（Persona）。
+
+---
+
 ## 执行模型：认知循环
 
 ![认知模型](./docs/cognitive_model_en.png)

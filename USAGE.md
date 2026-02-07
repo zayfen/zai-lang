@@ -38,8 +38,8 @@ context UserProfile {
 }
 
 skill Main() {
-    ask "What's your name? {name=}"
-    say "Welcome to the future, {name}!"
+    ask "What's your name? {{name=}}"
+    say "Welcome to the future, {{name}}!"
     success 0 "Greeted user"
 }
 ```
@@ -72,7 +72,7 @@ persona Personality {
 
 skill Main() {
     process "Analyze the user's mood" { extract: ["mood"] }
-    say "I see you are feeling {mood} today."
+    say "I see you are feeling {{mood}} today."
     success 0 "Analyzed mood"
 }
 ```
@@ -107,7 +107,7 @@ agent ModularAgent
 import "brain.zaih"
 
 skill Main() {
-    say "Hello, {user_name}!"
+    say "Hello, {{user_name}}!"
     // ... logic ...
 }
 ```
@@ -138,10 +138,12 @@ If `context.is_urgent` is true, `zai` will automatically add that extra warning 
 | Command | What it does | Example |
 | :--- | :--- | :--- |
 | `say` | Prints a message | `say "Hello!"` |
-| `ask` | Gets user input | `ask "Age? {age=}"` |
+| `ask` | Gets user input | `ask "Age? {{age=}}"` |
 | `process` | Asks AI to do something | `process "Summarize" { extract: ["summary"] }` |
 | `exec` | Runs a system command | `exec "ls -la" { filter: ["files"] }` |
 | `import` | Loads another file | `import "config.zaih"` |
-| `invoke` | Executes a recursive skill | `invoke MySkill()` |
+| `invoke` | Executes a skill | `invoke MySkill()` |
+| `notify` | Sends message to another agent | `notify "AgentName" "type" "payload"` |
+| `wait` | Waits for message from another agent | `[code, msg] = wait AgentName` |
 
 Ready to build? Check out the `examples/` folder for more complex agents!

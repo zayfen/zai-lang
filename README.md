@@ -47,8 +47,8 @@ context User {
 }
 
 skill Main() {
-    ask "What is your name? {name=}"
-    say "Hello, {name}!"
+    ask "What is your name? {{name=}}"
+    say "Hello, {{name}}!"
 }
 ```
 
