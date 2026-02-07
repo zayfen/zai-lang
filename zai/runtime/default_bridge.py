@@ -1,15 +1,15 @@
-import os
 import json
 from openai import OpenAI
 from .bridge import AIBridge, ExecBridge
 from ..builtin import tools
+from ..config import get_str, get_float
 
 class DefaultAIBridge(AIBridge):
     def __init__(self, api_key=None, base_url=None):
-        self.api_key = api_key or os.environ.get("ZAI_API_KEY")
-        self.base_url = base_url or os.environ.get("ZAI_BASE_URL")
-        self.model = os.environ.get("ZAI_MODEL") or 'deepseek-reasoner'
-        self.temperature = os.environ.get('ZAI_TEMPERATURE') or 0
+        self.api_key = api_key or get_str("ZAI_API_KEY")
+        self.base_url = base_url or get_str("ZAI_BASE_URL")
+        self.model = get_str("ZAI_MODEL", "deepseek-reasoner")
+        self.temperature = get_float("ZAI_TEMPERATURE", 0.0)
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
         print(f"[DefaultAIBridge] API_KEY: {self.api_key}  ; BASE_URL: {self.base_url} ; TEMPERATURE: {self.temperature}")
