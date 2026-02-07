@@ -88,10 +88,13 @@ class Interpreter:
                     # Check for agent_system_prompt (may be parsed differently)
                     continue
                 if agent_child.data == 'agent_system_prompt':
-                    # Extract system prompt from MULTILINE_STRING
-                    if agent_child.children:
-                        raw = agent_child.children[0].value
-                        self.agent_system_prompt = raw[3:-3]  # Remove """ """
+                    # Extract system prompt from nested agent_sys_content
+                    # Structure: agent_system_prompt -> agent_sys_content -> content token
+                    if agent_child.children and hasattr(agent_child.children[0], 'children'):
+                        content_node = agent_child.children[0]  # agent_sys_content
+                        if content_node.children:
+                            raw = content_node.children[0].value
+                            self.agent_system_prompt = raw.strip()
                 elif agent_child.data == 'context_def':
                     self.visit_context_def(agent_child, self.env)
                 elif agent_child.data == 'import_stmt':
@@ -261,9 +264,11 @@ class Interpreter:
         # Build system prompt: Agent base + Persona overlays
         system_parts = []
 
-        # 1. Agent-level system prompt (base identity)
+        # 1. Agent-level system prompt (base identity) with template resolution
         if self.agent_system_prompt:
-            system_parts.append(self.resolve_template(self.agent_system_prompt, env))
+            # Resolve templates like {{context.user_name}} or {{variable}}
+            resolved_prompt = self.resolve_template(self.agent_system_prompt, env)
+            system_parts.append(resolved_prompt)
 
         # 2. Persona overlays (dynamic contextual adjustments)
         for persona_name in self.persona:

@@ -1,13 +1,14 @@
 agent CustomerServiceBot
---- """
-You are a professional customer service representative for a tech company.
-Always be polite, helpful, and concise in your responses.
-Your goal is to resolve customer issues efficiently while maintaining a positive tone.
-""" ---
+<<<
+You are a professional customer service representative.
+Current customer: {{customer_name}}
+Current issue type: {{issue_type}}
+Always be polite, helpful, and concise.
+>>>
 
 context CustomerContext {
-    customer_name: ""
-    issue_type: ""
+    customer_name: "Guest"
+    issue_type: "general"
     urgency: "normal"
 }
 

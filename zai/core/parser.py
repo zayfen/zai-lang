@@ -5,7 +5,8 @@ GRAMMAR = r"""
 
     agent: "agent" IDENTIFIER [agent_system_prompt] import_stmt* (context_def | persona_def)* skill_def+
 
-    agent_system_prompt: "---" MULTILINE_STRING "---"
+    agent_system_prompt: "<<<" agent_sys_content ">>>"
+    agent_sys_content: /[^>]+/s
 
     import_stmt: "import" string
 
