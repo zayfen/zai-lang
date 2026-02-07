@@ -14,6 +14,7 @@ class Interpreter:
         self.skills = {}
         self.agent_name = ""
         self.persona = {}
+        self.agent_system_prompt = ""
         self.ai_bridge = ai_bridge or DefaultAIBridge()
         self.exec_bridge = exec_bridge or DefaultExecBridge()
         self.base_path = base_path
@@ -80,10 +81,18 @@ class Interpreter:
         if root.data == 'agent':
             self.agent_name = root.children[0].value
             self.context_defined = False
-            
+            self.agent_system_prompt = ""
+
             for agent_child in root.children[1:]:
-                if not hasattr(agent_child, 'data'): continue
-                if agent_child.data == 'context_def':
+                if not hasattr(agent_child, 'data'):
+                    # Check for agent_system_prompt (may be parsed differently)
+                    continue
+                if agent_child.data == 'agent_system_prompt':
+                    # Extract system prompt from MULTILINE_STRING
+                    if agent_child.children:
+                        raw = agent_child.children[0].value
+                        self.agent_system_prompt = raw[3:-3]  # Remove """ """
+                elif agent_child.data == 'context_def':
                     self.visit_context_def(agent_child, self.env)
                 elif agent_child.data == 'import_stmt':
                     self.visit_import_stmt(agent_child, self.env)
@@ -249,8 +258,14 @@ class Interpreter:
         prompt = self.evaluate(node.children[0], env)
         keys = [self.evaluate(tok, env) for tok in node.children[1:] if tok is not None]
 
-        # Merge all available personas
-        full_system_prompt = []
+        # Build system prompt: Agent base + Persona overlays
+        system_parts = []
+
+        # 1. Agent-level system prompt (base identity)
+        if self.agent_system_prompt:
+            system_parts.append(self.resolve_template(self.agent_system_prompt, env))
+
+        # 2. Persona overlays (dynamic contextual adjustments)
         for persona_name in self.persona:
             persona_parts = []
             for key in self.persona[persona_name]:
@@ -258,9 +273,9 @@ class Interpreter:
                 if instruction:
                     persona_parts.append(f"[{key}]\n{instruction}")
             if persona_parts:
-                full_system_prompt.append(f"--- Persona: {persona_name} ---\n" + "\n".join(persona_parts) + "\n")
+                system_parts.append(f"--- Persona: {persona_name} ---\n" + "\n".join(persona_parts))
 
-        system = "\n".join(full_system_prompt)
+        system = "\n\n".join(system_parts)
         res = self.ai_bridge.handle(prompt, keys, system, self.env.context)
         for k, v in res.items(): self.env.set_context(k, v)
 

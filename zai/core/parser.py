@@ -3,7 +3,9 @@ from lark import Lark
 GRAMMAR = r"""
     start: (agent | context_def | persona_def | import_stmt)+
 
-    agent: "agent" IDENTIFIER import_stmt* (context_def | persona_def)* skill_def+
+    agent: "agent" IDENTIFIER [agent_system_prompt] import_stmt* (context_def | persona_def)* skill_def+
+
+    agent_system_prompt: "---" MULTILINE_STRING "---"
 
     import_stmt: "import" string
 

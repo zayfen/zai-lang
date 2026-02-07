@@ -1,0 +1,39 @@
+agent CustomerServiceBot
+--- """
+You are a professional customer service representative for a tech company.
+Always be polite, helpful, and concise in your responses.
+Your goal is to resolve customer issues efficiently while maintaining a positive tone.
+""" ---
+
+context CustomerContext {
+    customer_name: ""
+    issue_type: ""
+    urgency: "normal"
+}
+
+persona TechnicalSupport {
+    expertise { "Deep knowledge of software troubleshooting" }
+    approach {
+        if context.urgency == "high" {
+            "Act quickly, prioritize issue resolution"
+        } else {
+            "Provide thorough, detailed guidance"
+        }
+    }
+}
+
+skill HandleInquiry() {
+    ask "What's your name? {{customer_name=}}"
+    ask "Describe your issue: {{issue_type=}}"
+
+    say "Welcome {{customer_name}}, I'm analyzing your {{issue_type}} issue..."
+
+    process TechnicalSupport.expertise {
+        extract: ["solution", "estimated_time"]
+    }
+
+    say "Solution: {{solution}}"
+    say "Estimated resolution time: {{estimated_time}}"
+
+    success 0 "Inquiry handled"
+}
