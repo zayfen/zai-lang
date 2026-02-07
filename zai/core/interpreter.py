@@ -248,15 +248,18 @@ class Interpreter:
     def visit_process_stmt(self, node, env):
         prompt = self.evaluate(node.children[0], env)
         keys = [self.evaluate(tok, env) for tok in node.children[1:] if tok is not None]
-        
-        # STRICT PERSONA BINDING: Merge all available personas
+
+        # Merge all available personas
         full_system_prompt = []
         for persona_name in self.persona:
-            if 'system' in self.persona[persona_name]:
-                 instruction = self.evaluate_persona(persona_name, 'system', env)
-                 if instruction:
-                     full_system_prompt.append(f"--- Persona: {persona_name} ---\n{instruction}\n")
-        
+            persona_parts = []
+            for key in self.persona[persona_name]:
+                instruction = self.evaluate_persona(persona_name, key, env)
+                if instruction:
+                    persona_parts.append(f"[{key}]\n{instruction}")
+            if persona_parts:
+                full_system_prompt.append(f"--- Persona: {persona_name} ---\n" + "\n".join(persona_parts) + "\n")
+
         system = "\n".join(full_system_prompt)
         res = self.ai_bridge.handle(prompt, keys, system, self.env.context)
         for k, v in res.items(): self.env.set_context(k, v)
@@ -386,6 +389,9 @@ class Interpreter:
                 if node.type == 'MULTILINE_STRING': return node.value[3:-3]
                 if node.type == 'SIGNED_NUMBER': return float(node.value)
                 if node.type == 'IDENTIFIER':
+                    # Handle boolean literals that may be parsed as identifiers
+                    if node.value == 'true': return True
+                    if node.value == 'false': return False
                     try: return env.get_var(node.value)
                     except: return self.env.get_context(node.value)
             return node
