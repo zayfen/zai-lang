@@ -3,7 +3,10 @@ from lark import Lark
 GRAMMAR = r"""
     start: (agent | context_def | persona_def | import_stmt)+
 
-    agent: "agent" IDENTIFIER import_stmt* (context_def | persona_def)* skill_def+
+    agent: "agent" IDENTIFIER [agent_system_prompt] import_stmt* (context_def | persona_def)* skill_def+
+
+    agent_system_prompt: "<<<" agent_sys_content ">>>"
+    agent_sys_content: /[^>]+/s
 
     import_stmt: "import" string
 
@@ -46,7 +49,7 @@ GRAMMAR = r"""
     while_stmt: "while" condition block
     block: "{" statement* "}"
 
-    process_stmt: "process" simple_expression [ "{" "extract" ":" "[" string ("," string)* "]" "}" ]
+    process_stmt: "process" expression [ "{" "extract" ":" "[" string ("," string)* "]" "}" ]
     
     ask_stmt: "ask" string
     
@@ -104,4 +107,4 @@ GRAMMAR = r"""
 """
 
 def get_parser():
-    return Lark(GRAMMAR, start=['start', 'agent', 'config_file', 'context_def', 'persona_def'], parser='lalr')
+    return Lark(GRAMMAR, start=['start', 'agent', 'config_file', 'context_def', 'persona_def'], parser='earley')

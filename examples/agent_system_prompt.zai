@@ -1,0 +1,40 @@
+agent CustomerServiceBot
+<<<
+You are a professional customer service representative.
+Current customer: {{customer_name}}
+Current issue type: {{issue_type}}
+Always be polite, helpful, and concise.
+>>>
+
+context CustomerContext {
+    customer_name: "Guest"
+    issue_type: "general"
+    urgency: "normal"
+}
+
+persona TechnicalSupport {
+    expertise { "Deep knowledge of software troubleshooting" }
+    approach {
+        if context.urgency == "high" {
+            "Act quickly, prioritize issue resolution"
+        } else {
+            "Provide thorough, detailed guidance"
+        }
+    }
+}
+
+skill HandleInquiry() {
+    ask "What's your name? {{customer_name=}}"
+    ask "Describe your issue: {{issue_type=}}"
+
+    say "Welcome {{customer_name}}, I'm analyzing your {{issue_type}} issue..."
+
+    process TechnicalSupport.expertise {
+        extract: ["solution", "estimated_time"]
+    }
+
+    say "Solution: {{solution}}"
+    say "Estimated resolution time: {{estimated_time}}"
+
+    success 0 "Inquiry handled"
+}

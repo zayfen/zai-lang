@@ -12,7 +12,7 @@ skill GetContext() {
     exec "date" { filter: ["raw_date"] }
     
     // 2. Get User Mood via interaction
-    ask "How are you feeling today? (energetic/tired/neutral) {user_mood=}"
+    ask "How are you feeling today? (energetic/tired/neutral) {{user_mood=}}"
 
     // 3. Update weather (Simulated)
     // In a real app, this might be an API call.

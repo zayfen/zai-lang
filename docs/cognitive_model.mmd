@@ -1,0 +1,51 @@
+graph TB
+    subgraph "🧠 zai Agent 认知架构"
+        subgraph "长期记忆层 (Context)"
+            C1[👤 用户信息<br/>user_profile]
+            C2[📜 历史记录<br/>history]
+            C3[📊 当前状态<br/>state]
+            C4[💡 学习知识<br/>knowledge]
+        end
+
+        subgraph "认知框架层 (Persona)"
+            P1[🎯 情境感知<br/>if/else conditions]
+            P2[🧭 决策策略<br/>system prompts]
+            P3[💭 思维模式<br/>cognitive style]
+        end
+
+        subgraph "执行层 (Skill)"
+            S1[👁️ 感知<br/>ask/exec]
+            S2[🤔 推理<br/>process]
+            S3[✋ 行动<br/>exec/say/notify]
+            S4[📝 学习<br/>context update]
+        end
+    end
+
+    C1 --> P1
+    C2 --> P1
+    C3 --> P1
+    C4 --> P1
+
+    P1 --> P2
+    P2 --> S2
+
+    S1 -->|更新| C3
+    S2 -->|决策| S3
+    S3 -->|反馈| S4
+    S4 -->|写入| C1
+    S4 -->|写入| C2
+    S4 -->|写入| C4
+
+    style C1 fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    style C2 fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    style C3 fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    style C4 fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+
+    style P1 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style P2 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style P3 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+
+    style S1 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style S2 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style S3 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style S4 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px

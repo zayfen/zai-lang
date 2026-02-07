@@ -5,11 +5,11 @@ context Profile {
 }
 
 persona Default {
-    base: "Hello {name}."
+    base: "Hello {{name}}."
 }
 
 skill Main() {
-    say "Hello {name}"
+    say "Hello {{name}}"
     process "Greet the user" {
         extract: ["name"]
     }

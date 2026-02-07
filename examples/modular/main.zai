@@ -3,8 +3,8 @@ agent ModularJob
     import "brain.zaih"
 
     skill Main() {
-        say "Hello {user_name} from {location}!"
+        say "Hello {{user_name}} from {{location}}!"
         process "What is the weather like?" { extract: ["weather_report"] }
-        say "Report: {weather_report}"
+        say "Report: {{weather_report}}"
         success 0 "Finished"
     }

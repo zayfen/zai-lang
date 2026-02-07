@@ -7,14 +7,14 @@ agent ConversionAccess
 
     persona AssistantStyle {
         base_instruction {
-            "You are {user_name}'s assistant."
+            "You are {{user_name}}'s assistant."
             if context.is_urgent {
-                "Be concise. Deadline is {deadline}."
+                "Be concise. Deadline is {{deadline}}."
             }
         }
         
         greeting {
-            "Hello {user_name}, I am your assistant."
+            "Hello {{user_name}}, I am your assistant."
             if context.is_urgent {
                 "How can I help you quickly?"
             }
@@ -24,11 +24,11 @@ agent ConversionAccess
     skill Main() {
         // Accessing persona item explicitly
         var full_greeting = AssistantStyle.greeting
-        say "{full_greeting}"
+        say "{{full_greeting}}"
         
         // The process statement automatically uses base_instruction from any defined persona
         process "Summarize this report" { extract: ["summary"] }
-        say "Report: {summary}"
+        say "Report: {{summary}}"
         
         success 0 "Done"
     }

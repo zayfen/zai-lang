@@ -1,0 +1,284 @@
+agent AIOpsOrchestrator
+
+context OpsContext {
+    alert_id: ""
+    service: ""
+    severity: ""
+    alert_type: ""
+    metrics: ""
+    logs: ""
+    diagnosis: ""
+    root_cause: ""
+    suggested_action: ""
+    confidence: 0
+    kb_matches: ""
+    fix_result: ""
+    requires_human: false
+    final_status: ""
+    start_time: ""
+}
+
+persona OpsExpert {
+    system: """
+    你是一位经验丰富的运维专家，擅长：
+    1. 分析系统指标和日志
+    2. 快速定位故障根因
+    3. 提供可靠的修复建议
+    4. 评估操作风险
+    """
+    style: "专业、简洁、注重可操作性"
+}
+
+skill Main() {
+    say "=== AIOps 智能运维告警处理系统 ==="
+    say ""
+
+    invoke ReceiveAlert()
+
+    say ""
+    say "=== 开始诊断 ==="
+    invoke CollectDiagnostics()
+
+    say ""
+    say "=== AI 根因分析 ==="
+    invoke AnalyzeWithAI()
+
+    say ""
+    say "=== 决策与处置 ==="
+    invoke DecideAndRemediate()
+
+    say ""
+    say "=== 生成报告 ==="
+    invoke GenerateReport()
+
+    success 0 "告警处理流程完成"
+}
+
+skill ReceiveAlert() {
+    say "[1/5] 接收告警信息"
+    say "------------------------------"
+
+    ask "请输入告警ID (alert_id): "
+
+    say "请选择服务名称 (service):"
+    say "1. api-gateway"
+    say "2. web-frontend"
+    say "3. database"
+    say "4. user-service"
+    say "5. payment-service"
+    ask "选择: "
+
+    var service_choice = context.alert_id
+
+    if (service_choice == "1") {
+        context.service = "api-gateway"
+    } else {
+        if (service_choice == "2") {
+            context.service = "web-frontend"
+        } else {
+            if (service_choice == "3") {
+                context.service = "database"
+            } else {
+                if (service_choice == "4") {
+                    context.service = "user-service"
+                } else {
+                    context.service = "payment-service"
+                }
+            }
+        }
+    }
+
+    say "请选择告警级别 (severity):"
+    say "1. critical (P0 - 立即处理)"
+    say "2. warning (P1 - 优先处理)"
+    say "3. info (P2 - 常规处理)"
+    ask "选择: "
+
+    var severity_choice = context.alert_id
+
+    if (severity_choice == "1") {
+        context.severity = "critical"
+    } else {
+        if (severity_choice == "2") {
+            context.severity = "warning"
+        } else {
+            context.severity = "info"
+        }
+    }
+
+    say "请选择告警类型 (alert_type):"
+    say "1. high_latency"
+    say "2. high_error_rate"
+    say "3. service_down"
+    say "4. resource_exhausted"
+    say "5. connection_timeout"
+    ask "选择: "
+
+    var type_choice = context.alert_id
+
+    if (type_choice == "1") {
+        context.alert_type = "high_latency"
+    } else {
+        if (type_choice == "2") {
+            context.alert_type = "high_error_rate"
+        } else {
+            if (type_choice == "3") {
+                context.alert_type = "service_down"
+            } else {
+                if (type_choice == "4") {
+                    context.alert_type = "resource_exhausted"
+                } else {
+                    context.alert_type = "connection_timeout"
+                }
+            }
+        }
+    }
+
+    say ""
+    say "告警信息已接收:"
+    say "  - ID: {{alert_id}}"
+    say "  - 服务: {{service}}"
+    say "  - 级别: {{severity}}"
+    say "  - 类型: {{alert_type}}"
+
+    success 0 "告警接收完成"
+}
+
+skill CollectDiagnostics() {
+    say "[2/5] 收集诊断数据"
+    say "------------------------------"
+
+    say "正在查询 {{service}} 的系统指标..."
+    exec "python tools/check_metrics.py {{service}}"
+
+    say "正在查询 {{service}} 的最近日志..."
+    exec "python tools/query_logs.py {{service}} 30"
+
+    say "正在查询知识库..."
+    exec "python tools/knowledge_base.py {{alert_type}}"
+
+    say ""
+    say "诊断数据收集完成"
+
+    success 0 "诊断数据收集完成"
+}
+
+skill AnalyzeWithAI() {
+    say "[3/5] AI 根因分析"
+    say "------------------------------"
+
+    process OpsExpert.system {
+        extract: ["root_cause", "confidence", "suggested_action", "requires_human"]
+    }
+
+    if (context.root_cause == "") {
+        context.root_cause = "未知原因"
+    }
+    if (context.confidence == 0) {
+        context.confidence = 0.5
+    }
+    if (context.suggested_action == "") {
+        context.suggested_action = "restart"
+    }
+
+    say ""
+    say "AI 分析结果:"
+    say "  - 根因: {{root_cause}}"
+    say "  - 置信度: {{confidence}}"
+    say "  - 建议操作: {{suggested_action}}"
+    say "  - 需人工介入: {{requires_human}}"
+
+    success 0 "AI分析完成"
+}
+
+skill DecideAndRemediate() {
+    say "[4/5] 决策与自动修复"
+    say "------------------------------"
+
+    var auto_fix_threshold = 0.8
+    var critical_severity = context.severity == "critical"
+    var high_confidence = context.confidence >= auto_fix_threshold
+
+    say "决策条件评估:"
+    say "  - 告警级别为 Critical: {{critical_severity}}"
+    say "  - AI 置信度 >= 0.8: {{high_confidence}}"
+    say "  - 需要人工介入: {{requires_human}}"
+
+    if (context.requires_human == true) {
+        say ""
+        say "根据AI分析，此问题需要人工介入处理"
+        ask "是否仍要尝试自动修复? (yes/no): "
+
+        var confirm = context.alert_id
+        if (confirm != "yes") {
+            say "已跳过自动修复，等待人工处理"
+            context.fix_result = "SKIPPED - 等待人工处理"
+            context.final_status = "PENDING"
+            success 0 "等待人工处理"
+        }
+    }
+
+    if (critical_severity && high_confidence) {
+        say ""
+        say "Critical 告警且高置信度，执行自动修复..."
+        say "执行操作: {{suggested_action}}"
+
+        exec "python tools/simulate_fix.py {{suggested_action}} {{service}}"
+
+        context.fix_result = "自动修复已执行"
+        context.final_status = "RESOLVED_AUTO"
+        say "自动修复完成"
+    } else {
+        if (high_confidence) {
+            say ""
+            say "高置信度修复建议，等待人工确认..."
+            ask "建议执行 '{{suggested_action}}'，是否确认? (yes/no): "
+
+            var confirm = context.alert_id
+            if (confirm == "yes") {
+                exec "python tools/simulate_fix.py {{suggested_action}} {{service}}"
+
+                context.fix_result = "人工确认后执行"
+                context.final_status = "RESOLVED_MANUAL_CONFIRM"
+                say "修复成功"
+            } else {
+                context.fix_result = "用户取消操作"
+                context.final_status = "CANCELLED"
+                say "操作已取消"
+            }
+        } else {
+            say ""
+            say "AI置信度较低 ({{confidence}})，建议人工诊断"
+            say "根因分析: {{root_cause}}"
+            say "建议操作: {{suggested_action}}"
+            context.fix_result = "未执行 - 置信度低"
+            context.final_status = "MANUAL_REQUIRED"
+        }
+    }
+
+    success 0 "决策与处置完成"
+}
+
+skill GenerateReport() {
+    say "[5/5] 生成处理报告"
+    say "=============================="
+    say ""
+    say "告警处理报告"
+    say "=============================="
+    say "告警ID:     {{alert_id}}"
+    say "服务:       {{service}}"
+    say "告警类型:   {{alert_type}}"
+    say "告警级别:   {{severity}}"
+    say "------------------------------"
+    say "诊断信息"
+    say "根因:       {{root_cause}}"
+    say "AI置信度:   {{confidence}}"
+    say "------------------------------"
+    say "处置信息"
+    say "修复操作:   {{suggested_action}}"
+    say "执行结果:   {{fix_result}}"
+    say "最终状态:   {{final_status}}"
+    say "=============================="
+
+    success 0 "报告生成完成"
+}

@@ -11,7 +11,9 @@ Version: 1.4
 ## 2. EBNF Grammar
 
 ```ebnf
-agent        ::= "agent" identifier import_stmt* (context_def | persona_def)* skill_def+
+agent               ::= "agent" identifier [agent_system_prompt] import_stmt* (context_def | persona_def)* skill_def+
+agent_system_prompt ::= "<<<" agent_sys_content ">>>"
+agent_sys_content   ::= /[^>]+/s
 import_stmt  ::= "import" string
 
 config_file  ::= (context_def | persona_def)*
@@ -61,6 +63,24 @@ condition    ::= expression
 
 ### 3.1 `agent`
 The entry point of a `.zai` file. Defines the namespace and unique identity of the agent.
+
+**Agent System Prompt**: An optional base system prompt can be specified after the agent name, enclosed in `<<< ... >>>`. This defines the agent's fundamental identity and behavior, which is always included in AI interactions. The content supports template rendering using `{{variable}}` or `{{context.variable}}` syntax.
+
+```zai
+agent CustomerServiceBot
+<<<
+You are a professional customer service representative.
+Current customer: {{customer_name}}
+Always be polite, helpful, and concise.
+>>>
+
+context { ... }
+persona { ... }
+```
+
+The system prompt composition order during `process`:
+1. Agent-level system prompt (base identity, with templates resolved at runtime)
+2. Active persona overlays (contextual adjustments)
 
 ### 3.2 `import` (Modularization)
 Allows importing `context` and `persona` definitions from external files.

@@ -18,15 +18,43 @@ In zai, **Context is King**.
 - **Context (State)**: What the agent knows.
 - **Persona (Voice)**: How the agent talks to the AI.
 - **Skill (Behavior)**: What the agent does.
+- **Agent System Prompt**: Base identity of the agent, defined with `<<< ... >>>` syntax.
+
+### Agent System Prompt
+An optional base system prompt can be defined at the agent level using the `<<< ... >>>` syntax. This establishes the agent's fundamental identity and is always included in AI interactions.
+
+```zai
+agent CustomerServiceBot
+<<<
+You are a professional customer service representative.
+Current customer: {{customer_name}}
+Always be polite and helpful.
+>>>
+
+context CustomerContext {
+    customer_name: "Guest"
+}
+
+skill HandleInquiry() {
+    ask "What's your name? {{customer_name=}}"
+    process "How can I help?" { extract: ["response"] }
+}
+```
+
+The system prompt composition order during `process`:
+1. **Agent-level system prompt** (base identity, with `{{variable}}` templates resolved at runtime)
+2. **Active persona overlays** (contextual adjustments)
 
 ## 3. Language Features
 
 ### Dynamic Templating
-Strings assigned to variables act as templates. They support deep nesting and dynamic resolution.
+Strings support template rendering using `{{variable}}` syntax. Context variables and local variables are automatically interpolated.
 ```zai
-var Welcome = "Hi {USER}!"
-var Page = "{HEADER} Content goes here."
-var out = Page { HEADER = Welcome { USER = "Riven" } }
+var Welcome = "Hi {{user_name}}!"
+var Page = "{{header}} Content goes here."
+context.user_name = "Riven"
+context.header = Welcome
+say Page  // Output: Hi Riven! Content goes here.
 ```
 
 ### Context-Aware AI Interaction

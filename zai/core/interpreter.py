@@ -4,7 +4,7 @@ import json
 import time
 import uuid
 from .environment import Environment
-from ..runtime.bridge import AIBridge, ExecBridge
+
 from ..runtime.default_bridge import DefaultAIBridge, DefaultExecBridge
 
 class Interpreter:
@@ -14,6 +14,7 @@ class Interpreter:
         self.skills = {}
         self.agent_name = ""
         self.persona = {}
+        self.agent_system_prompt = ""
         self.ai_bridge = ai_bridge or DefaultAIBridge()
         self.exec_bridge = exec_bridge or DefaultExecBridge()
         self.base_path = base_path
@@ -36,7 +37,7 @@ class Interpreter:
             except:
                 val = self.env.get_context(key)
                 return str(val if val is not None else f"{{{key}}}")
-        return re.sub(r"\{([a-zA-Z0-9_]+)\}", replace, template_str)
+        return re.sub(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}", replace, template_str)
 
     def visit(self, node, env):
         if node is None: return None
@@ -80,10 +81,21 @@ class Interpreter:
         if root.data == 'agent':
             self.agent_name = root.children[0].value
             self.context_defined = False
-            
+            self.agent_system_prompt = ""
+
             for agent_child in root.children[1:]:
-                if not hasattr(agent_child, 'data'): continue
-                if agent_child.data == 'context_def':
+                if not hasattr(agent_child, 'data'):
+                    # Check for agent_system_prompt (may be parsed differently)
+                    continue
+                if agent_child.data == 'agent_system_prompt':
+                    # Extract system prompt from nested agent_sys_content
+                    # Structure: agent_system_prompt -> agent_sys_content -> content token
+                    if agent_child.children and hasattr(agent_child.children[0], 'children'):
+                        content_node = agent_child.children[0]  # agent_sys_content
+                        if content_node.children:
+                            raw = content_node.children[0].value
+                            self.agent_system_prompt = raw.strip()
+                elif agent_child.data == 'context_def':
                     self.visit_context_def(agent_child, self.env)
                 elif agent_child.data == 'import_stmt':
                     self.visit_import_stmt(agent_child, self.env)
@@ -233,10 +245,13 @@ class Interpreter:
 
     def visit_ask_stmt(self, node, env):
         prompt = self.evaluate(node.children[0], env)
-        match = re.search(r"\{([a-zA-Z0-9_]+)=\}", prompt)
+        prompt = self.resolve_template(prompt, env)
+        match = re.search(r"\{\{\s*([a-zA-Z0-9_]+)=\s*\}\}", prompt)
         if match:
             var_name = match.group(1)
-            clean_prompt = prompt.replace(f"{{{var_name}=}}", "").strip()
+            # Match the exact pattern found and remove it
+            full_match = match.group(0)
+            clean_prompt = prompt.replace(full_match, "").strip()
             user_val = input(f"[{self.agent_name}] {clean_prompt} ")
             self.env.set_context(var_name, user_val)
         else:
@@ -245,16 +260,27 @@ class Interpreter:
     def visit_process_stmt(self, node, env):
         prompt = self.evaluate(node.children[0], env)
         keys = [self.evaluate(tok, env) for tok in node.children[1:] if tok is not None]
-        
-        # STRICT PERSONA BINDING: Merge all available personas
-        full_system_prompt = []
+
+        # Build system prompt: Agent base + Persona overlays
+        system_parts = []
+
+        # 1. Agent-level system prompt (base identity) with template resolution
+        if self.agent_system_prompt:
+            # Resolve templates like {{context.user_name}} or {{variable}}
+            resolved_prompt = self.resolve_template(self.agent_system_prompt, env)
+            system_parts.append(resolved_prompt)
+
+        # 2. Persona overlays (dynamic contextual adjustments)
         for persona_name in self.persona:
-            if 'base_instruction' in self.persona[persona_name]:
-                 instruction = self.evaluate_persona(persona_name, 'base_instruction', env)
-                 if instruction:
-                     full_system_prompt.append(f"--- Persona: {persona_name} ---\n{instruction}\n")
-        
-        system = "\n".join(full_system_prompt)
+            persona_parts = []
+            for key in self.persona[persona_name]:
+                instruction = self.evaluate_persona(persona_name, key, env)
+                if instruction:
+                    persona_parts.append(f"[{key}]\n{instruction}")
+            if persona_parts:
+                system_parts.append(f"--- Persona: {persona_name} ---\n" + "\n".join(persona_parts))
+
+        system = "\n\n".join(system_parts)
         res = self.ai_bridge.handle(prompt, keys, system, self.env.context)
         for k, v in res.items(): self.env.set_context(k, v)
 
@@ -319,7 +345,7 @@ class Interpreter:
                     except:
                         pass
             
-            if found_msg:
+            if found_msg and found_file:
                 # Consume message
                 os.remove(found_file)
                 env.set_var(code_var, found_msg.get("type")) # usually numeric code or string
@@ -383,6 +409,9 @@ class Interpreter:
                 if node.type == 'MULTILINE_STRING': return node.value[3:-3]
                 if node.type == 'SIGNED_NUMBER': return float(node.value)
                 if node.type == 'IDENTIFIER':
+                    # Handle boolean literals that may be parsed as identifiers
+                    if node.value == 'true': return True
+                    if node.value == 'false': return False
                     try: return env.get_var(node.value)
                     except: return self.env.get_context(node.value)
             return node
