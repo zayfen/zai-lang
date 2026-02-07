@@ -1,6 +1,8 @@
 # zai Technical Guide
 Version: 1.2
 
+[English](DOCUMENTATION.md) | [中文](DOCUMENTATION.zh-CN.md)
+
 ## Introduction
 **zai** is a programming language built specifically for modern AI workflows. It prioritizes state management (Context) and AI personality (Persona) as first-class citizens.
 It is designed to provide a native, unified framework for building complex AI agents where state, logic, and reasoning are deeply integrated.

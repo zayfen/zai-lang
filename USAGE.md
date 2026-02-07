@@ -1,5 +1,7 @@
 # Getting Started with zai 🚀
 
+[English](USAGE.md) | [中文](USAGE.zh-CN.md)
+
 Welcome to **zai**, the programming language designed to help you build AI agents as easily as writing a script. If you've ever wanted to automate a complex task using AI but found existing tools too complicated, you're in the right place!
 
 This guide will take you from "Hello World" to building your first modular AI agent.
