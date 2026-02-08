@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-zai = "zai.cli:main"
+zai = "zai.zai:main"
 
 [build-system]
 requires = ["hatchling"]
