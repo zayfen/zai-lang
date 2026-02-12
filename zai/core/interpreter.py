@@ -384,19 +384,25 @@ class Interpreter:
     def visit_start_stmt(self, node, env):
         target_agent = node.children[0].value
         print(f"[{self.agent_name}] Starting sub-agent: {target_agent}")
-        
+
         import subprocess
         import sys
-        
+
         # If we have the source file, we can spawn a new process
         if self.source_file:
-             cmd = [sys.executable, "-m", "zai.zai", self.source_file, "--agent", target_agent]
-             # Run in background? The user said "child agent... can execute wait notify"
-             # Ideally this should be non-blocking or managed. 
-             # "start" usually implies async spawning.
-             subprocess.Popen(cmd)
+            cmd = [sys.executable, "-m", "zai.zai", self.source_file, "--agent", target_agent]
+            try:
+                # Create new process group for independent I/O
+                # Don't redirect stdin/stdout/stderr to allow interactive input
+                proc = subprocess.Popen(
+                    cmd,
+                    start_new_session=True  # Create new session for independent I/O
+                )
+                print(f"[{self.agent_name}] Sub-agent {target_agent} started (PID: {proc.pid})")
+            except Exception as e:
+                print(f"[{self.agent_name}] Failed to start sub-agent {target_agent}: {e}")
         else:
-             print("Warning: Cannot start agent, source file not known.")
+            print("Warning: Cannot start agent, source file not known.")
 
     def visit_fail_stmt(self, node, env):
         return {"status": "fail", "code": int(self.evaluate(node.children[0], env)), "message": self.evaluate(node.children[1], env), "final": True}
