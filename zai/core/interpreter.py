@@ -390,7 +390,7 @@ class Interpreter:
         
         # If we have the source file, we can spawn a new process
         if self.source_file:
-             cmd = [sys.executable, "-m", "zai.cli", self.source_file, "--agent", target_agent]
+             cmd = [sys.executable, "-m", "zai.zai", self.source_file, "--agent", target_agent]
              # Run in background? The user said "child agent... can execute wait notify"
              # Ideally this should be non-blocking or managed. 
              # "start" usually implies async spawning.
