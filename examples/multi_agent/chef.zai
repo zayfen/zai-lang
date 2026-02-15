@@ -1,0 +1,27 @@
+agent ChefAgent
+
+context KitchenContext {
+    order_id: ""
+    dish_name: ""
+    cooking_time: 0
+}
+
+skill Main() {
+    while true {
+        [order_status, order_data] = wait WaiterAgent
+
+        if order_status == "SHUTDOWN" {
+            say "Kitchen shutting down. Goodbye!"
+            break
+        }
+
+        if order_status == "NEW_ORDER" {
+            context.dish_name = order_data
+            say "Cooking {{dish_name}}..."
+
+            exec "bash -c 'sleep 2'"
+
+            notify WaiterAgent "ORDER_READY" "{{dish_name}}"
+        }
+    }
+}

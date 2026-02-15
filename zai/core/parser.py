@@ -3,10 +3,12 @@ from lark import Lark
 GRAMMAR = r"""
     start: (agent | context_def | persona_def | import_stmt)+
 
-    agent: "agent" IDENTIFIER [agent_system_prompt] import_stmt* (context_def | persona_def)* skill_def+
+    agent: "agent" IDENTIFIER [agent_system_prompt] use_stmt* import_stmt* (context_def | persona_def)* skill_def+
 
     agent_system_prompt: "<<<" agent_sys_content ">>>"
     agent_sys_content: /[^>]+/s
+
+    use_stmt: "use" string
 
     import_stmt: "import" string
 
@@ -37,6 +39,7 @@ GRAMMAR = r"""
               | start_stmt
               | skill_invoke
               | return_stmt
+              | break_stmt
  
     start_stmt: "start" IDENTIFIER
 
@@ -65,6 +68,8 @@ GRAMMAR = r"""
     return_stmt: success_stmt | fail_stmt
     success_stmt: "success" expression expression
     fail_stmt: "fail" expression expression
+    
+    break_stmt: "break"
     
     response_stmt: ("reply" | "say") expression
 

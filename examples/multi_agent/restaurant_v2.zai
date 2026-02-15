@@ -1,0 +1,52 @@
+agent RestaurantManager
+
+use "chef.zai"
+use "waiter.zai"
+
+context ManagerContext {
+    status: "running"
+    orders_processed: 0
+    current_dish: ""
+    max_orders: 2
+}
+
+skill Main() {
+    say "Starting restaurant in session..."
+
+    start ChefAgent
+    start WaiterAgent
+
+    say "All agents started in session"
+
+    while context.orders_processed < context.max_orders {
+        if context.orders_processed == 0 {
+            context.current_dish = "Pizza"
+        } else {
+            context.current_dish = "Pasta"
+        }
+        
+        say "Customer orders: {{current_dish}}"
+        notify WaiterAgent "TAKE_ORDER" "{{current_dish}}"
+
+        [order_status, order_result] = wait WaiterAgent
+
+        if order_status == "ORDER_COMPLETE" {
+            say "Customer received: {{order_result}}"
+            context.orders_processed = context.orders_processed + 1
+        } else {
+            if order_status == -1 {
+                say "Order timeout!"
+            }
+        }
+    }
+
+    say "Restaurant session complete. Processed {{orders_processed}} orders."
+
+    say "Shutting down restaurant..."
+    notify WaiterAgent "SHUTDOWN" ""
+    notify ChefAgent "SHUTDOWN" ""
+    
+    exec "bash -c 'sleep 1'"
+    
+    say "Restaurant closed."
+}

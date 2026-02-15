@@ -1,0 +1,37 @@
+agent WaiterAgent
+
+context WaiterContext {
+    customer_order: ""
+    order_status: "pending"
+}
+
+skill Main() {
+    say "Waiter is ready to take orders"
+
+    while true {
+        [order_status, order_data] = wait RestaurantManager
+
+        if order_status == "SHUTDOWN" {
+            say "Received shutdown signal. Goodbye!"
+            break
+        }
+
+        if order_status == "TAKE_ORDER" {
+            context.customer_order = order_data
+            say "Taking order for: {{customer_order}}"
+
+            notify ChefAgent "NEW_ORDER" "{{customer_order}}"
+
+            [chef_status, chef_result] = wait ChefAgent
+
+            if chef_status == -1 {
+                say "Chef timeout!"
+            } else {
+                if chef_status == "ORDER_READY" {
+                    say "Order ready: {{chef_result}}"
+                    notify RestaurantManager "ORDER_COMPLETE" "{{chef_result}}"
+                }
+            }
+        }
+    }
+}

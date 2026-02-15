@@ -1,0 +1,243 @@
+agent ChefAgent
+
+context KitchenContext {
+    order_id: "",
+    dish_name: "",
+    quantity: 1,
+    special_request: "",
+    status: "",
+    preparation_time: 0,
+    waiter_name: ""
+}
+
+persona ChefPersonality {
+    style: "专业、高效、注重质量"
+    attitude: "作为一名专业厨师，我会仔细检查每个订单，按照标准流程准备食材，确保餐品质量，并及时通知服务员取餐。"
+}
+
+skill Main() {
+    say "==========================================="
+    say "        厨房系统启动 - ChefAgent"
+    say "==========================================="
+    say ""
+    say "等待服务员提交订单..."
+    say ""
+
+    while true {
+        [order_status, order_data] = wait WaiterAgent
+
+        say ""
+        say "-------------------------------------------"
+        say "收到新订单！"
+
+        if order_status == "NEW_ORDER" {
+            invoke ProcessOrder(order_info = order_data)
+        } else {
+            if order_status == "CANCEL_ORDER" {
+                say "订单已取消: {{order_data}}"
+            } else {
+                say "未知订单类型: {{order_status}}"
+            }
+        }
+    }
+}
+
+skill ProcessOrder(order_info) {
+    say "正在解析订单信息..."
+
+    context.dish_name = order_info
+    context.status = "preparing"
+
+    say ""
+    say "订单详情:"
+    say "   菜品: {{dish_name}}"
+    say "   状态: 准备中..."
+    say ""
+
+    say "开始烹饪..."
+    say "   1. 准备食材..."
+    say "   2. 热锅..."
+    say "   3. 烹饪中..."
+    say "   4. 摆盘..."
+
+    exec "bash -c 'sleep 2'"
+
+    context.status = "ready"
+
+    say ""
+    say "{{dish_name}} 制作完成！"
+    say "通知服务员取餐..."
+    say ""
+
+    notify WaiterAgent "ORDER_READY" "{{dish_name}}"
+
+    say "已通知服务员"
+}
+
+
+agent WaiterAgent
+
+context ServiceContext {
+    customer_name: "",
+    table_number: "",
+    order_list: "",
+    current_order: "",
+    order_count: 0,
+    total_served: 0,
+    chef_status: "",
+    continue_order: ""
+}
+
+persona WaiterPersonality {
+    style: "热情、周到、专业"
+    greeting: "欢迎光临！我是您的专属服务员。今天我能为您做些什么？"
+}
+
+skill Main() {
+    say "==========================================="
+    say "        服务系统启动 - WaiterAgent"
+    say "==========================================="
+    say ""
+
+    process WaiterPersonality.greeting {
+        extract: ["greeting"]
+    }
+
+    say "欢迎使用智能点餐系统！"
+    say ""
+
+    ask "请问您的姓名是？ {{customer_name=}}"
+    ask "请问您坐在几号桌？ {{table_number=}}"
+
+    say ""
+    say "您好，{{customer_name}}！您的桌号是 {{table_number}}。"
+    say ""
+
+    var continue_order = true
+
+    while continue_order {
+        invoke TakeOrder()
+
+        context.order_count = context.order_count + 1
+
+        ask "还需要点其他菜品吗？(yes/no) {{continue_order=}}"
+        if context.continue_order != "yes" {
+            var continue_order = false
+        }
+    }
+
+    say ""
+    say "==========================================="
+    say "订单汇总 ({{customer_name}} - {{table_number}}号桌)"
+    say "   共点 {{order_count}} 道菜"
+    say "   订单内容: {{order_list}}"
+    say "==========================================="
+    say ""
+
+    var pending_orders = context.order_count
+
+    while pending_orders > 0 {
+        say "等待厨房出餐... (剩余: {{pending_orders}})"
+        say ""
+
+        [chef_code, chef_msg] = wait ChefAgent
+
+        if chef_code == "ORDER_READY" {
+            say ""
+            say "厨房通知: {{chef_msg}} 已准备好！"
+            say "正在为 {{customer_name}} 上菜..."
+            say ""
+
+            context.total_served = context.total_served + 1
+            pending_orders = pending_orders - 1
+
+            say "已上菜: {{chef_msg}}"
+            say "   已上: {{total_served}} / {{order_count}}"
+            say ""
+        }
+    }
+
+    say ""
+    say "==========================================="
+    say "所有餐品已上齐！"
+    say "==========================================="
+    say "顾客: {{customer_name}}"
+    say "桌号: {{table_number}}"
+    say "上菜数: {{total_served}}"
+    say ""
+    say "感谢光临，祝您用餐愉快！"
+    say "==========================================="
+
+    success 0 "服务完成"
+}
+
+skill TakeOrder() {
+    say "----------- 点餐 -----------"
+    say ""
+    say "今日推荐:"
+    say "  1. 宫保鸡丁 - 38元"
+    say "  2. 麻婆豆腐 - 28元"
+    say "  3. 红烧肉   - 48元"
+    say "  4. 清蒸鲈鱼 - 68元"
+    say "  5. 西红柿炒蛋 - 22元"
+    say ""
+
+    ask "请输入您要的菜品名称: {{current_order=}}"
+
+    say ""
+    say "已记录: {{current_order}}"
+
+    if context.order_list == "" {
+        context.order_list = context.current_order
+    } else {
+        context.order_list = "{{order_list}}, {{current_order}}"
+    }
+
+    say ""
+    say "正在将订单发送到厨房..."
+
+    notify ChefAgent "NEW_ORDER" "{{current_order}}"
+
+    say "订单已发送到厨房"
+    say ""
+}
+
+
+agent RestaurantManager
+
+context ManagerContext {
+    restaurant_name: "智能餐厅",
+    status: "open",
+    waiter_ready: false,
+    chef_ready: false
+}
+
+skill Main() {
+    say "==========================================="
+    say "    {{restaurant_name}} - 管理系统启动"
+    say "==========================================="
+    say ""
+    say "正在启动各个子系统..."
+    say ""
+
+    say "启动厨房系统..."
+    start ChefAgent
+
+    exec "bash -c 'sleep 1'"
+
+    say "启动服务系统..."
+    start WaiterAgent
+
+    say ""
+    say "==========================================="
+    say "所有子系统已启动！"
+    say "   - 厨房系统: 运行中"
+    say "   - 服务系统: 运行中"
+    say "==========================================="
+    say ""
+    say "管理系统正在监控中..."
+    say "按 Ctrl+C 停止所有服务"
+    say ""
+
+
+}
