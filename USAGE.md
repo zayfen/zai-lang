@@ -143,9 +143,67 @@ If `context.is_urgent` is true, `zai` will automatically add that extra warning 
 | `ask` | Gets user input | `ask "Age? {{age=}}"` |
 | `process` | Asks AI to do something | `process "Summarize" { extract: ["summary"] }` |
 | `exec` | Runs a system command | `exec "ls -la" { filter: ["files"] }` |
-| `import` | Loads another file | `import "config.zaih"` |
+| `import` | Loads context/persona definitions | `import "brain.zaih"` |
+| `use` | Imports agent definitions | `use "agent.zai"` |
 | `invoke` | Executes a skill | `invoke MySkill()` |
 | `notify` | Sends message to another agent | `notify "AgentName" "type" "payload"` |
 | `wait` | Waits for message from another agent | `[code, msg] = wait AgentName` |
+| `start` | Starts a new agent process | `start WorkerAgent` |
+| `break` | Exits a while loop | `break` |
+
+---
+
+## 6. Multi-Agent Systems
+
+Build distributed AI systems with multiple agents that can communicate with each other.
+
+### Example: Restaurant
+
+**File: manager.zai**
+```zai
+agent RestaurantManager
+use "worker.zai"
+
+context ManagerContext {
+    orders_processed: 0
+}
+
+skill Main() {
+    start WorkerAgent
+    
+    notify WorkerAgent "order" "Pizza"
+    [status, result] = wait WorkerAgent
+    
+    say "Order result: {{result}}"
+    
+    notify WorkerAgent "SHUTDOWN" ""
+}
+```
+
+**File: worker.zai**
+```zai
+agent WorkerAgent
+
+skill Main() {
+    while true {
+        [cmd, data] = wait RestaurantManager
+        
+        if cmd == "SHUTDOWN" {
+            say "Goodbye!"
+            break
+        }
+        
+        if cmd == "order" {
+            say "Processing: {{data}}"
+            notify RestaurantManager "success" "Order ready!"
+        }
+    }
+}
+```
+
+### Running Multi-Agent
+```bash
+python3 -m zai.zai examples/multi_agent/restaurant_v2.zai
+```
 
 Ready to build? Check out the `examples/` folder for more complex agents!
