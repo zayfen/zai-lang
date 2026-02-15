@@ -23,6 +23,19 @@ class Interpreter:
         self.wait_timeout = wait_timeout
         self.source_file = source_file
 
+        self.agent_registry = {}
+        self.session_id = None
+        self.session_manager_queue = None
+        self.session_queue = None
+        self.session_server_proc = None
+
+        # Message sequence tracking for request-response correlation
+        self.send_sequence = 0  # Counter for outgoing messages
+        self.expected_response_seq = None  # Sequence number we're waiting for
+        self.received_from = None  # Agent that sent us the last message
+        self.received_seq = None  # Sequence number of received message
+        self.conversation_stack = []  # Stack for nested request-response patterns
+
     def _ensure_ipc_dir(self, agent_name):
         path = os.path.join(self.ipc_root, agent_name)
         os.makedirs(path, exist_ok=True)
@@ -33,10 +46,13 @@ class Interpreter:
         def replace(match):
             key = match.group(1)
             try:
-                return str(env.get_var(key))
+                val = env.get_var(key)
+                return str(val)
             except:
                 val = self.env.get_context(key)
-                return str(val if val is not None else f"{{{key}}}")
+                if val is not None:
+                    return str(val)
+                return f"{{{key}}}"
         return re.sub(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}", replace, template_str)
 
     def visit(self, node, env):
@@ -99,6 +115,8 @@ class Interpreter:
                     self.visit_context_def(agent_child, self.env)
                 elif agent_child.data == 'import_stmt':
                     self.visit_import_stmt(agent_child, self.env)
+                elif agent_child.data == 'use_stmt':
+                    self.visit_use_stmt(agent_child, self.env)
                 elif agent_child.data == 'persona_def':
                     self.visit_persona_def(agent_child, self.env)
                 elif agent_child.data == 'skill_def':
@@ -144,6 +162,35 @@ class Interpreter:
         # config_file children are context_def or persona_def.
         for child in tree.children:
             self.visit(child, env)
+
+    def visit_use_stmt(self, node, env):
+        from .parser import get_parser
+        
+        module_path = self.evaluate(node.children[0], env)
+        abs_path = os.path.abspath(os.path.join(self.base_path, module_path))
+        
+        print(f"[{self.agent_name}] Using module: {module_path}")
+        
+        if abs_path in self.imported_files:
+            return
+        
+        self.imported_files.add(abs_path)
+        
+        if not os.path.exists(abs_path):
+            print(f"Warning: Use file not found: {abs_path}")
+            return
+        
+        with open(abs_path, 'r') as f:
+            code = f.read()
+        
+        parser = get_parser()
+        tree = parser.parse(code, start='start')
+        
+        for child in tree.children:
+            if hasattr(child, 'data') and child.data == 'agent':
+                agent_name = child.children[0].value
+                self.agent_registry[agent_name] = abs_path
+                print(f"[{self.agent_name}] Registered agent: {agent_name} from {module_path}")
 
     def visit_persona_def(self, node, env):
         name = node.children[0].value
@@ -226,8 +273,14 @@ class Interpreter:
     def visit_while_stmt(self, node, env):
         while self.evaluate(node.children[0], env):
             result = self.visit(node.children[1], env)
-            if isinstance(result, dict) and (result.get("final") or result.get("status") == "fail"):
-                return result
+            if isinstance(result, dict):
+                if result.get("break"):
+                    return {"break": True}
+                if result.get("final") or result.get("status") == "fail":
+                    return result
+
+    def visit_break_stmt(self, node, env):
+        return {"break": True}
 
     def visit_block(self, node, env):
         last_result = None
@@ -241,7 +294,7 @@ class Interpreter:
     def visit_response_stmt(self, node, env):
         val = self.evaluate(node.children[0], env)
         msg = self.resolve_template(val, env)
-        print(f"[{self.agent_name}] Agent: {msg}")
+        print(f"[{self.agent_name}] Agent: {msg}", flush=True)
 
     def visit_ask_stmt(self, node, env):
         prompt = self.evaluate(node.children[0], env)
@@ -294,39 +347,73 @@ class Interpreter:
         target_agent = node.children[0].value
         cmd_type = self.evaluate(node.children[1], env)
         payload = self.evaluate(node.children[2], env)
-        
+        payload = self.resolve_template(str(payload), env)
+
+        # Increment send sequence for this request
+        self.send_sequence += 1
+        seq = self.send_sequence
+
+        # Determine if this is a response to a previous message
+        # Only use sequence correlation when responding to the same agent we received from
+        if self.received_from is not None and target_agent == self.received_from:
+            # This is a direct response to the agent we received from
+            # Use sequence correlation
+            response_seq = self.received_seq
+            # Don't expect a response to a response
+            self.expected_response_seq = None
+
+            # Restore previous conversation context from stack (if any)
+            # This allows returning to the outer request after completing an inner request
+            if self.conversation_stack:
+                self.received_from, self.received_seq = self.conversation_stack.pop()
+            else:
+                # No more nested conversations, clear tracking
+                self.received_from = None
+                self.received_seq = None
+        else:
+            # This is a new request (or a forward to a different agent)
+            # Don't use sequence correlation
+            response_seq = None
+            # Expect a response to this new request
+            self.expected_response_seq = seq
+
         # Write to target agent's IPC directory
         target_dir = self._ensure_ipc_dir(target_agent)
         message = {
             "source": self.agent_name,
             "type": cmd_type,
             "payload": payload,
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "seq": seq,  # Include sequence number for correlation
+            "response_seq": response_seq  # Echo back received sequence if this is a response
         }
-        
+
         filename = f"{uuid.uuid4()}.json"
         with open(os.path.join(target_dir, filename), "w") as f:
             json.dump(message, f)
-            
-        print(f"[{self.agent_name}] Notified {target_agent}: {cmd_type}")
+
+        print(f"[{self.agent_name}] Notified {target_agent}: {cmd_type}", flush=True)
 
     def visit_wait_stmt(self, node, env):
         code_var = node.children[0].value
         msg_var = node.children[1].value
         target_source = node.children[2].value # We expect this to be the source agent name
-        
+
         my_dir = self._ensure_ipc_dir(self.agent_name)
-        
-        print(f"[{self.agent_name}] Waiting for signal from {target_source}...")
-        
+
+        print(f"[{self.agent_name}] Waiting for signal from {target_source}...", flush=True)
+
+        # Get the expected response sequence number
+        expected_seq = self.expected_response_seq
+
         # Simple polling loop
-        timeout = self.wait_timeout 
+        timeout = self.wait_timeout
         start_time = time.time()
-        
+
         while time.time() - start_time < timeout:
             found_msg = None
             found_file = None
-            
+
             # Check for messages
             if os.path.exists(my_dir):
                 files = os.listdir(my_dir)
@@ -336,28 +423,46 @@ class Interpreter:
                     try:
                         with open(fpath, 'r') as f:
                             msg = json.load(f)
-                            
-                        # Check if message is from the expected source
+
+                        # Check if message is from expected source
+                        # If expected_seq is set, require matching response_seq
+                        # But if response_seq is None, accept the message anyway
                         if msg.get("source") == target_source:
+                            if expected_seq is not None and msg.get("response_seq") is not None:
+                                if msg.get("response_seq") != expected_seq:
+                                    continue  # Not the response we're waiting for
                             found_msg = msg
                             found_file = fpath
                             break
-                    except:
-                        pass
-            
+                    except (json.JSONDecodeError, IOError) as e:
+                        print(f"[{self.agent_name}] Warning: Failed to read message file {fname}: {e}")
+
             if found_msg and found_file:
                 # Consume message
                 os.remove(found_file)
                 env.set_var(code_var, found_msg.get("type")) # usually numeric code or string
                 env.set_var(msg_var, found_msg.get("payload"))
+
+                # Push current conversation context to stack before overwriting
+                # This allows us to return to the previous context after responding
+                if self.received_from is not None:
+                    self.conversation_stack.append((self.received_from, self.received_seq))
+
+                # Track who sent us this message (for response correlation)
+                self.received_from = found_msg.get("source")
+                self.received_seq = found_msg.get("seq")
+
+                # Clear expected sequence after receiving response
+                self.expected_response_seq = None
                 return
-            
+
             time.sleep(0.5)
-            
+
         # Timeout case
-        print(f"[{self.agent_name}] Wait timed out!")
+        print(f"[{self.agent_name}] Wait timed out!", flush=True)
         env.set_var(code_var, -1)
         env.set_var(msg_var, "TIMEOUT")
+        self.expected_response_seq = None
 
     def visit_template_render(self, node, env):
         tpl_str = env.get_var(node.children[0].value)
@@ -383,20 +488,30 @@ class Interpreter:
 
     def visit_start_stmt(self, node, env):
         target_agent = node.children[0].value
-        print(f"[{self.agent_name}] Starting sub-agent: {target_agent}")
-        
+        print(f"[{self.agent_name}] Starting sub-agent: {target_agent}", flush=True)
+
         import subprocess
         import sys
-        
-        # If we have the source file, we can spawn a new process
-        if self.source_file:
-             cmd = [sys.executable, "-m", "zai.cli", self.source_file, "--agent", target_agent]
-             # Run in background? The user said "child agent... can execute wait notify"
-             # Ideally this should be non-blocking or managed. 
-             # "start" usually implies async spawning.
-             subprocess.Popen(cmd)
+
+        source_file = None
+        if target_agent in self.agent_registry:
+            source_file = self.agent_registry[target_agent]
+            print(f"[{self.agent_name}] Found {target_agent} in registry: {source_file}", flush=True)
+        elif self.source_file:
+            source_file = self.source_file
+
+        if source_file:
+            cmd = [sys.executable, "-m", "zai.zai", source_file]
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    start_new_session=True
+                )
+                print(f"[{self.agent_name}] Sub-agent {target_agent} started (PID: {proc.pid})", flush=True)
+            except Exception as e:
+                print(f"[{self.agent_name}] Failed to start sub-agent {target_agent}: {e}", flush=True)
         else:
-             print("Warning: Cannot start agent, source file not known.")
+            print(f"Warning: Cannot start agent {target_agent}, source file not known.")
 
     def visit_fail_stmt(self, node, env):
         return {"status": "fail", "code": int(self.evaluate(node.children[0], env)), "message": self.evaluate(node.children[1], env), "final": True}
