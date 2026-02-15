@@ -1,5 +1,5 @@
 # zai Language Specification
-Version: 1.4
+Version: 1.5
 
 [English](SPECIFICATION.md) | [中文](SPECIFICATION.zh-CN.md)
 
@@ -13,10 +13,11 @@ Version: 1.4
 ## 2. EBNF Grammar
 
 ```ebnf
-agent               ::= "agent" identifier [agent_system_prompt] import_stmt* (context_def | persona_def)* skill_def+
+agent               ::= "agent" identifier [agent_system_prompt] use_stmt* import_stmt* (context_def | persona_def)* skill_def+
 agent_system_prompt ::= "<<<" agent_sys_content ">>>"
 agent_sys_content   ::= /[^>]+/s
-import_stmt  ::= "import" string
+import_stmt         ::= "import" string
+use_stmt            ::= "use" string
 
 config_file  ::= (context_def | persona_def)*
 
@@ -30,7 +31,7 @@ persona_if   ::= "if" condition persona_block ["else" persona_block]
 skill_def    ::= "skill" identifier "(" [params] ")" "{" (statement)* "}"
 
 params       ::= identifier ("," identifier)*
-statement    ::= var_decl | assignment | if_stmt | while_stmt | response_stmt | process_stmt | ask_stmt | exec_stmt | notify_stmt | wait_stmt | skill_invoke | return_stmt
+statement    ::= var_decl | assignment | if_stmt | while_stmt | response_stmt | process_stmt | ask_stmt | exec_stmt | notify_stmt | wait_stmt | skill_invoke | return_stmt | break_stmt
 
 var_decl     ::= "var" identifier "=" expression
 assignment   ::= (identifier | context_var) "=" expression
@@ -49,7 +50,8 @@ wait_stmt    ::= "[" identifier "," identifier "]" "=" "wait" identifier
 skill_invoke ::= "invoke" identifier "(" [args] ")"
 args         ::= assignment ("," assignment)*
 return_stmt  ::= ("success" | "fail") expression expression
-response_stmt::= ("reply" | "say") expression
+break_stmt   ::= "break"
+response_stmt ::= ("reply" | "say") expression
 
 expression   ::= binary_op | simple_expression | template_render | context_var | persona_ref
 simple_expression ::= string | number | boolean | identifier | "(" expression ")"
@@ -90,6 +92,21 @@ Allows importing `context` and `persona` definitions from external files.
 - **Scope**: Definitions from the imported file are merged into the current `agent` scope.
 - **Convention**: Use `.zaih` for files intended for import (e.g., `brain.zaih`).
 
+### 3.2.1 `use` (Agent Import)
+Allows importing agent definitions from other `.zai` files. This enables multi-agent systems where agents can start and communicate with each other.
+- **Syntax**: `use "agent_file.zai"`
+- **Usage**: The imported agent definitions are registered and can be started using the `start` statement.
+- **Example**:
+```zai
+agent Manager
+use "worker.zai"
+
+skill Main() {
+    start WorkerAgent
+    notify WorkerAgent "task" "do_something"
+}
+```
+
 ### 3.3 `context`
 Defines the **Managed State**. All variables within this block are persistent and accessible via the `context.` prefix. AI updates via `process` target these fields.
 > **Note**: An agent can define only **one** `context` block (even across imports). Multiple `context` definitions will cause a runtime error.
@@ -118,6 +135,20 @@ The **AI Reasoning Bridge**.
 - **`while`**: Looping execution.
 - Both use standard boolean conditions (`==`, `!=`, `&&`, `||`, etc.).
 
+### 3.8.1 `break`
+The **Loop Exit Statement**. Used to exit from a `while` loop prematurely.
+- **Syntax**: `break`
+- **Example**:
+```zai
+while true {
+    [status, data] = wait Agent
+    
+    if status == "SHUTDOWN" {
+        say "Shutting down..."
+        break  // Exit the loop
+    }
+}
+
 ### 3.9 `ask`
 The **Human Input Primitive**.
 - Format: `ask "Message {var_name=}"`.
@@ -134,10 +165,44 @@ The **External System Interface**.
 - **Engine**: Behavior can be overridden via third-party `ExecBridge` implementations.
 - **Filter**: Maps engine output into `context` fields.
 
-### 3.12 `notify` & `wait`
+### 3.12 `notify` & `wait` & `start`
 The **Coordination Layer**.
 - `notify`: Non-blocking signal sent to another `agent`.
 - `wait`: Blocking wait for a signal from another `agent`, destructuring the result into `[code, message]`.
+- `start`: Spawns a new agent process. The agent must be defined in a `.zai` file and imported via `use`.
+
+**Example - Multi-Agent System**:
+```zai
+// File: manager.zai
+agent Manager
+use "worker.zai"
+
+skill Main() {
+    start WorkerAgent  // Start worker in a new process
+    
+    notify WorkerAgent "task" "process_data"
+    [status, result] = wait WorkerAgent
+    
+    notify WorkerAgent "SHUTDOWN" ""
+}
+```
+
+```zai
+// File: worker.zai
+agent WorkerAgent
+
+skill Main() {
+    while true {
+        [cmd, data] = wait Manager
+        
+        if cmd == "SHUTDOWN" {
+            break
+        }
+        
+        // Process task...
+        notify Manager "success" "Task completed"
+    }
+}
 
 ### 3.13 `success` / `fail`
 Standardized skill return types. Every skill must terminate with one of these to provide predictable results to the orchestrator.

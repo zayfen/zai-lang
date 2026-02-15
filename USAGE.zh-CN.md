@@ -171,9 +171,67 @@ skill HandleInquiry() {
 | `ask` | 获取用户输入 | `ask "年龄？{{age=}}"` |
 | `process` | 请求 AI 做某事 | `process "总结" { extract: ["summary"] }` |
 | `exec` | 运行系统命令 | `exec "ls -la" { filter: ["files"] }` |
-| `import` | 加载另一个文件 | `import "config.zaih"` |
+| `import` | 加载上下文/人格定义 | `import "brain.zaih"` |
+| `use` | 导入智能体定义 | `use "agent.zai"` |
 | `invoke` | 执行技能 | `invoke MySkill()` |
 | `notify` | 向另一个智能体发送消息 | `notify "AgentName" "类型" "内容"` |
 | `wait` | 等待来自另一个智能体的消息 | `[code, msg] = wait AgentName` |
+| `start` | 启动新的智能体进程 | `start WorkerAgent` |
+| `break` | 退出 while 循环 | `break` |
+
+---
+
+## 7. 多智能体系统
+
+构建分布式 AI 系统，让多个智能体可以相互通信。
+
+### 示例：餐厅
+
+**文件：manager.zai**
+```zai
+agent RestaurantManager
+use "worker.zai"
+
+context ManagerContext {
+    orders_processed: 0
+}
+
+skill Main() {
+    start WorkerAgent
+    
+    notify WorkerAgent "order" "Pizza"
+    [status, result] = wait WorkerAgent
+    
+    say "订单结果：{{result}}"
+    
+    notify WorkerAgent "SHUTDOWN" ""
+}
+```
+
+**文件：worker.zai**
+```zai
+agent WorkerAgent
+
+skill Main() {
+    while true {
+        [cmd, data] = wait RestaurantManager
+        
+        if cmd == "SHUTDOWN" {
+            say "再见！"
+            break
+        }
+        
+        if cmd == "order" {
+            say "正在处理：{{data}}"
+            notify RestaurantManager "success" "订单完成！"
+        }
+    }
+}
+```
+
+### 运行多智能体
+```bash
+python3 -m zai.zai examples/multi_agent/restaurant_v2.zai
+```
 
 准备好构建了吗？查看 `examples/` 文件夹获取更多复杂的智能体示例！

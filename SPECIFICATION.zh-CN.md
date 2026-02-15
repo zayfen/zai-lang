@@ -1,5 +1,5 @@
 # zai 语言规范
-版本：1.4
+版本：1.5
 
 [English](SPECIFICATION.md) | [中文](SPECIFICATION.zh-CN.md)
 
@@ -14,10 +14,11 @@
 ## 2. EBNF 语法
 
 ```ebnf
-agent               ::= "agent" identifier [agent_system_prompt] import_stmt* (context_def | persona_def)* skill_def+
+agent               ::= "agent" identifier [agent_system_prompt] use_stmt* import_stmt* (context_def | persona_def)* skill_def+
 agent_system_prompt ::= "<<<" agent_sys_content ">>>"
 agent_sys_content   ::= /[^>]+/s
 import_stmt         ::= "import" string
+use_stmt            ::= "use" string
 
 config_file         ::= (context_def | persona_def)*
 
@@ -43,6 +44,7 @@ statement           ::= var_decl
                       | wait_stmt
                       | skill_invoke
                       | return_stmt
+                      | break_stmt
 
 var_decl            ::= "var" identifier "=" expression
 assignment          ::= target "=" expression
@@ -62,6 +64,7 @@ wait_stmt           ::= "[" identifier "," identifier "]" "=" "wait" identifier
 skill_invoke        ::= "invoke" identifier "(" [args] ")"
 args                ::= assignment ("," assignment)*
 return_stmt         ::= ("success" | "fail") expression expression
+break_stmt          ::= "break"
 response_stmt       ::= ("reply" | "say") expression
 
 expression          ::= binary_op | simple_expression | template_render | context_var | persona_ref
@@ -103,6 +106,21 @@ persona { ... }
 - **作用域**：导入文件的定义合并到当前 `agent` 作用域。
 - **约定**：使用 `.zaih` 作为意图导入的文件（例如 `brain.zaih`）。
 
+### 3.2.1 `use`（智能体导入）
+允许从其他 `.zai` 文件导入智能体定义。这使得智能体可以相互启动和通信，实现多智能体系统。
+- **语法**：`use "agent_file.zai"`
+- **用法**：导入的智能体定义会被注册，可以通过 `start` 语句启动。
+- **示例**：
+```zai
+agent Manager
+use "worker.zai"
+
+skill Main() {
+    start WorkerAgent
+    notify WorkerAgent "task" "do_something"
+}
+```
+
 ### 3.3 `context`
 定义**托管状态**。此块中的所有变量都是持久化的，可通过 `context.` 前缀访问。AI 通过 `process` 的更新目标这些字段。
 > **注意**：智能体只能定义**一个** `context` 块（即使在导入文件中）。多个 `context` 定义会导致运行时错误。
@@ -129,7 +147,22 @@ persona { ... }
 ### 3.8 `if` & `while`
 - **`if`**：条件执行。
 - **`while`**：循环执行。
-- 两者使用标准布尔条件（`==`、`!=`、`\u0026\u0026`、`||` 等）。
+- 两者使用标准布尔条件（`==`、`!=`、`&&`、`||` 等）。
+
+### 3.8.1 `break`
+**循环退出语句**。用于提前退出 `while` 循环。
+- **语法**：`break`
+- **示例**：
+```zai
+while true {
+    [status, data] = wait Agent
+    
+    if status == "SHUTDOWN" {
+        say "正在关闭..."
+        break  // 退出循环
+    }
+}
+```
 
 ## 4. 模板系统
 
